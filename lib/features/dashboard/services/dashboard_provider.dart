@@ -6,22 +6,26 @@ import '../presentation/models/dashboard_state.dart';
 final dashboardStateProvider = StateNotifierProvider<
     DashboardNotifier,
     DashboardState>((ref) {
-  final sensorState = ref.watch(sensorDataProvider);
-  final notifier = DashboardNotifier(ref);
-
-  // React to sensor changes
-  Future.microtask(() {
-    notifier.updateFromSensors(sensorState);
-  });
-
-  return notifier;
+  return DashboardNotifier(ref);
 });
 
 class DashboardNotifier extends StateNotifier<DashboardState> {
   final Ref _ref;
-
+  
   DashboardNotifier(this._ref) : super(DashboardState()) {
     _init();
+    
+    // Get initial sensor state immediately
+    final initialSensorState = _ref.read(sensorDataProvider);
+    updateFromSensors(initialSensorState);
+    
+    // Listen to sensor updates
+    _ref.listen<SensorReadingList>(
+      sensorDataProvider,
+      (previous, next) {
+        updateFromSensors(next);
+      },
+    );
   }
 
   void _init() async {
@@ -47,7 +51,6 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     if (state.currentBatch != null && sensorState.latest != null) {
       final updatedBatch = state.currentBatch!.copyWith(
         readings: [...state.currentBatch!.readings, sensorState.latest!],
-        finalMoisture: sensorState.latest!.moisture,
       );
       state = state.copyWith(currentBatch: updatedBatch);
     }

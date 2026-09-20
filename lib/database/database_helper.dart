@@ -23,9 +23,21 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 1,
+      version: 3, // Increment version to force upgrade
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Drop and recreate all tables to fix any schema issues
+    await db.execute('DROP TABLE IF EXISTS scan_results');
+    await db.execute('DROP TABLE IF EXISTS batches');
+    await db.execute('DROP TABLE IF EXISTS alerts');
+    await db.execute('DROP TABLE IF EXISTS pending_sync');
+    
+    // Recreate all tables with correct schema
+    await _onCreate(db, newVersion);
   }
 
   Future<void> _onCreate(Database db, int version) async {

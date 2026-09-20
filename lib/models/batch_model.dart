@@ -111,16 +111,12 @@ class SensorReading {
   final DateTime timestamp;
   final double temperature;
   final double humidity;
-  final double moisture;
-  final double solarIrradiance;
 
   SensorReading({
     String? id,
     required this.timestamp,
     required this.temperature,
     required this.humidity,
-    required this.moisture,
-    required this.solarIrradiance,
   }) : id = id ?? const Uuid().v4();
 
   Map<String, dynamic> toMap() {
@@ -129,8 +125,6 @@ class SensorReading {
       'timestamp': timestamp.toIso8601String(),
       'temperature': temperature,
       'humidity': humidity,
-      'moisture': moisture,
-      'solarIrradiance': solarIrradiance,
     };
   }
 
@@ -140,8 +134,6 @@ class SensorReading {
       timestamp: DateTime.parse(map['timestamp'] ?? DateTime.now().toIso8601String()),
       temperature: map['temperature'] ?? 0.0,
       humidity: map['humidity'] ?? 0.0,
-      moisture: map['moisture'] ?? 0.0,
-      solarIrradiance: map['solarIrradiance'] ?? 0.0,
     );
   }
 }

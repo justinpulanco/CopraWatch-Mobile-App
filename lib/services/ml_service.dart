@@ -23,23 +23,23 @@ class MLService {
   /// Load ML model and labels
   Future<bool> loadModel() async {
     try {
-      print('Attempting to load model from assets/ml/copra_model.tflite');
+      print('Loading model from assets/copra_quality_model.tflite/model_unquant.tflite');
       // Load Interpreter from assets
-      _interpreter = await Interpreter.fromAsset('assets/ml/copra_model.tflite');
+      _interpreter = await Interpreter.fromAsset('assets/copra_quality_model.tflite/model_unquant.tflite');
       
-      print('Attempting to load labels from assets/ml/labels.txt');
+      print('Loading labels from assets/copra_quality_model.tflite/labels.txt');
       // Load labels from assets
-      final labelsData = await rootBundle.loadString('assets/ml/labels.txt');
+      final labelsData = await rootBundle.loadString('assets/copra_quality_model.tflite/labels.txt');
       _labels = labelsData.split('\n').where((s) => s.isNotEmpty).map((s) {
         // Remove index prefix if exists (e.g., "0 Under-dried" -> "Under-dried")
-        final parts = s.split(' ');
+        final parts = s.trim().split(' ');
         if (parts.length > 1 && int.tryParse(parts[0]) != null) {
           return parts.sublist(1).join(' ');
         }
-        return s;
+        return s.trim();
       }).toList();
 
-      print('Model loaded successfully with ${_labels?.length} classes');
+      print('Model loaded successfully with ${_labels?.length} classes: $_labels');
       _isModelLoaded = true;
       return true;
     } catch (e) {

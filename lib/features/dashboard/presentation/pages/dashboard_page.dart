@@ -185,23 +185,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   showProgress: true,
                   onTap: () => context.go(AppRoutes.monitor),
                 ),
-                const SizedBox(height: 12),
-
-                // Solar irradiance card
-                SensorCard(
-                  title: 'Solar Irradiance',
-                  value:
-                      dashboardState.latestReading?.solarIrradiance
-                          .toStringAsFixed(0) ??
-                      '0',
-                  unit: 'W/m²',
-                  icon: Icons.light_mode_rounded,
-                  iconColor: AppTheme.accentOrange,
-                  maxValue: AppConstants.maxSolarIrradiance,
-                  minValue: AppConstants.minSolarIrradiance,
-                  showProgress: true,
-                  onTap: () => context.go(AppRoutes.monitor),
-                ),
                 const SizedBox(height: 24),
 
                 // Action buttons
@@ -237,9 +220,5 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         currentLocation: AppRoutes.dashboard,
       ),
     );
-  }
-
-  dynamic _generateMockReading() {
-    return null;
   }
 }

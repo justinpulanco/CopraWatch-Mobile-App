@@ -32,6 +32,7 @@ dependencies:
   connectivity_plus: ^6.0.0
   permission_handler: 13.0.0
   shared_preferences: ^2.2.3
+  flutter_local_notifications: ^17.0.0
 
   # Database
   sqflite: ^2.3.2
@@ -72,6 +73,8 @@ flutter:
   assets:
     - assets/
     - assets/ml/
+    - assets/copra_quality_model.tflite/model_unquant.tflite
+    - assets/copra_quality_model.tflite/labels.txt
 
   # Fonts
   fonts:

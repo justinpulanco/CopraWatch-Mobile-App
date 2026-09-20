@@ -18,6 +18,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   late TextEditingController _ipController;
   late TextEditingController _portController;
+  late TextEditingController _tempThresholdController;
+  late TextEditingController _humidityThresholdController;
 
   bool _autoConnect = true;
   bool _notificationsEnabled = true;
@@ -29,6 +31,8 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     _ipController = TextEditingController(text: AppConstants.raspberryPiDefaultIP);
     _portController = TextEditingController(text: AppConstants.raspberryPiDefaultPort.toString());
+    _tempThresholdController = TextEditingController(text: '80');
+    _humidityThresholdController = TextEditingController(text: '15');
     _loadSettings();
   }
 
@@ -36,6 +40,8 @@ class _SettingsPageState extends State<SettingsPage> {
   void dispose() {
     _ipController.dispose();
     _portController.dispose();
+    _tempThresholdController.dispose();
+    _humidityThresholdController.dispose();
     super.dispose();
   }
 
@@ -47,6 +53,8 @@ class _SettingsPageState extends State<SettingsPage> {
       _autoConnect = prefs.getBool(PreferenceKeys.autoConnectRaspberryPi) ?? true;
       _notificationsEnabled = prefs.getBool(PreferenceKeys.notificationsEnabled) ?? true;
       _temperatureUnit = prefs.getString(PreferenceKeys.temperatureUnit) ?? 'Celsius';
+      _tempThresholdController.text = (prefs.getDouble('tempThreshold') ?? 80.0).toString();
+      _humidityThresholdController.text = (prefs.getDouble('humidityThreshold') ?? 15.0).toString();
     });
 
     // Update API Constants on load
@@ -60,6 +68,8 @@ class _SettingsPageState extends State<SettingsPage> {
     await prefs.setBool(PreferenceKeys.autoConnectRaspberryPi, _autoConnect);
     await prefs.setBool(PreferenceKeys.notificationsEnabled, _notificationsEnabled);
     await prefs.setString(PreferenceKeys.temperatureUnit, _temperatureUnit);
+    await prefs.setDouble('tempThreshold', double.tryParse(_tempThresholdController.text) ?? 80.0);
+    await prefs.setDouble('humidityThreshold', double.tryParse(_humidityThresholdController.text) ?? 15.0);
 
     // Update API Constants
     ApiConstants.updateBaseUrl(_ipController.text, int.tryParse(_portController.text) ?? 5000);
@@ -113,6 +123,20 @@ class _SettingsPageState extends State<SettingsPage> {
               'Enable Notifications',
               _notificationsEnabled,
               (value) => setState(() => _notificationsEnabled = value),
+            ),
+            const Divider(height: 24),
+
+            // Alert Thresholds
+            _buildSection(context, 'Alert Thresholds'),
+            _buildThresholdField(
+              'Temperature Alert (°C)',
+              _tempThresholdController,
+              'Alert when temperature exceeds this value',
+            ),
+            _buildThresholdField(
+              'Humidity Alert (%)',
+              _humidityThresholdController,
+              'Alert when humidity drops below this value',
             ),
             const Divider(height: 24),
 
@@ -279,16 +303,32 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           Text(
             label,
-            style: Theme.of(context).textTheme.labelMedium,
+            style: const TextStyle(fontSize: 14),
           ),
           Text(
             value,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textSecondary,
-                ),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildThresholdField(String label, TextEditingController controller, String hint) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppConstants.defaultPadding,
+        vertical: 8,
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: const Icon(Icons.warning_amber_rounded),
+          suffixText: label.contains('Temperature') ? '°C' : '%',
+        ),
       ),
     );
   }

@@ -1,8 +1,11 @@
 import '../database/database_helper.dart';
 import '../models/batch_model.dart';
+import 'sync_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class BatchService {
   final DatabaseHelper _db = DatabaseHelper();
+  final SyncService _sync = SyncService();
 
   // Create new batch
   Future<Batch> createBatch({
@@ -18,7 +21,23 @@ class BatchService {
       readings: [],
     );
 
-    await _db.insertBatch(batch.toMap());
+    final batchMap = {
+      ...batch.toMap(),
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+
+    await _db.insertBatch(batchMap);
+    
+    // Queue for sync if offline
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      await _sync.addPendingSync(
+        dataType: 'batch',
+        dataId: batch.id,
+        data: batchMap,
+      );
+    }
+    
     return batch;
   }
 

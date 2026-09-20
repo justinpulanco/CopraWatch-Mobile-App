@@ -1,0 +1,15 @@
+To update the RPI backend with camera stream support:
+
+1. On your Windows machine, copy the api_server.py file to RPI:
+   scp rpi_backend/api_server.py justinpulanco23@192.168.254.199:~/Downloads/rpi_backend/
+
+2. On RPI, restart the server:
+   cd ~/Downloads/rpi_backend
+   python3 api_server.py
+
+3. Test the camera endpoint:
+   curl http://localhost:5000/api/camera/test
+
+The updated api_server.py includes:
+- /api/camera/test - Test camera functionality
+- /api/camera/stream - Live MJPEG stream

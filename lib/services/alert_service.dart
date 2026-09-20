@@ -1,4 +1,5 @@
 import '../database/database_helper.dart';
+import '../models/notification_model.dart';
 
 class AlertService {
   final DatabaseHelper _db = DatabaseHelper();
@@ -8,6 +9,25 @@ class AlertService {
   static const double minTemperature = 20.0;
   static const double maxHumidity = 85.0;
   static const double minHumidity = 30.0;
+
+  // Create alert (new method for threshold checking)
+  Future<void> createAlert({
+    required NotificationType type,
+    required String title,
+    required String message,
+    required double value,
+    required double threshold,
+  }) async {
+    final alert = {
+      'batchId': 'current',
+      'alertType': type.toString(),
+      'value': value,
+      'threshold': threshold,
+      'timestamp': DateTime.now().toIso8601String(),
+      'acknowledged': 0,
+    };
+    await _db.insertAlert(alert);
+  }
 
   // Check and create alerts
   Future<void> checkAndCreateAlert({

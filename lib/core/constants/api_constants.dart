@@ -1,6 +1,6 @@
 class ApiConstants {
   // API Base URL - This can be updated at runtime from Settings
-  static String baseUrl = 'http://192.168.1.100:5000';
+  static String baseUrl = 'http://192.168.254.199:5000';
 
   // Endpoints
   static String get healthCheck => '$baseUrl/api/health';

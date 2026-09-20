@@ -4,6 +4,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
 import '../../../../core/routes/app_router.dart';
+import '../../../../core/utils/moisture_mapper.dart';
 import '../../../../database/database_helper.dart';
 import '../../../../database/models/scan_result.dart';
 
@@ -134,7 +135,7 @@ class _HistoryPageState extends State<HistoryPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildInfoChip('Confidence', '${(result.confidence * 100).toStringAsFixed(1)}%'),
-                _buildInfoChip('Moisture', '${result.moisture.toStringAsFixed(1)}%'),
+                _buildInfoChip('Moisture', MoistureMapper.getMoistureDisplayTl(result.moistureStatus)),
                 _buildInfoChip('Batch', result.batchId),
               ],
             ),

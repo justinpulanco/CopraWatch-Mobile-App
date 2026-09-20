@@ -62,13 +62,6 @@ class AnalyticsPage extends StatelessWidget {
                   Icons.trending_up_rounded,
                   AppTheme.successColor,
                 ),
-                _buildSummaryCard(
-                  context,
-                  'Avg Moisture',
-                  '12.3%',
-                  Icons.opacity_rounded,
-                  AppTheme.infoColor,
-                ),
               ],
             ),
 
@@ -322,12 +315,6 @@ class AnalyticsPage extends StatelessWidget {
                       context,
                       'Humidity Control',
                       'Increase air circulation during 2-4 PM for better results.',
-                    ),
-                    const SizedBox(height: 12),
-                    _buildRecommendation(
-                      context,
-                      'Moisture Target',
-                      '12-13% is your sweet spot. Current average: 12.3%',
                     ),
                   ],
                 ),

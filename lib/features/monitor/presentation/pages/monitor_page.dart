@@ -139,32 +139,6 @@ class MonitorPage extends ConsumerWidget {
                     minValue: AppConstants.minHumidity,
                     showProgress: true,
                   ),
-                  const SizedBox(height: 12),
-
-                  // Moisture Level
-                  SensorCard(
-                    title: 'Moisture Level',
-                    value: latest.moisture.toStringAsFixed(1),
-                    unit: '%',
-                    icon: Icons.water_drop_rounded,
-                    iconColor: AppTheme.infoColor,
-                    maxValue: AppConstants.maxMoisture,
-                    minValue: AppConstants.minMoisture,
-                    showProgress: true,
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Solar Irradiance
-                  SensorCard(
-                    title: 'Solar Irradiance',
-                    value: latest.solarIrradiance.toStringAsFixed(0),
-                    unit: 'W/m²',
-                    icon: Icons.light_mode_rounded,
-                    iconColor: AppTheme.accentOrange,
-                    maxValue: AppConstants.maxSolarIrradiance,
-                    minValue: AppConstants.minSolarIrradiance,
-                    showProgress: true,
-                  ),
                   const SizedBox(height: 24),
 
                   // Charts
@@ -222,32 +196,11 @@ class MonitorPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // Moisture Chart
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppConstants.defaultPadding),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Moisture Level Trend',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            height: 200,
-                            child: _MoistureChart(
-                              readings: sensorData.readings,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                   const SizedBox(height: 24),
                 ],
               ),
             ),
+
       bottomNavigationBar: CustomBottomNavigation(
         currentLocation: AppRoutes.monitor,
       ),
@@ -436,90 +389,4 @@ class _HumidityChart extends StatelessWidget {
   }
 }
 
-class _MoistureChart extends StatelessWidget {
-  final List<dynamic> readings;
 
-  const _MoistureChart({required this.readings});
-
-  @override
-  Widget build(BuildContext context) {
-    return LineChart(
-      LineChartData(
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          horizontalInterval: 5,
-          getDrawingHorizontalLine: (value) {
-            return FlLine(
-              color: AppTheme.dividerColor,
-              strokeWidth: 1,
-            );
-          },
-        ),
-        titlesData: FlTitlesData(
-          show: true,
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              interval: (readings.length / 5).toDouble(),
-              getTitlesWidget: (value, meta) => const Text(''),
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              interval: 5,
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  '${value.toInt()}%',
-                  style: const TextStyle(fontSize: 10),
-                );
-              },
-              reservedSize: 40,
-            ),
-          ),
-        ),
-        borderData: FlBorderData(
-          show: true,
-          border: Border(
-            bottom: BorderSide(color: AppTheme.dividerColor),
-            left: BorderSide(color: AppTheme.dividerColor),
-          ),
-        ),
-        minY: 5,
-        maxY: 50,
-        lineBarsData: [
-          LineChartBarData(
-            spots: readings
-                .asMap()
-                .entries
-                .map((e) => FlSpot(e.key.toDouble(), e.value.moisture))
-                .toList(),
-            isCurved: true,
-            color: AppTheme.infoColor,
-            barWidth: 2,
-            dotData: FlDotData(
-              show: false,
-              getDotPainter: (spot, percent, bar, index) =>
-                  FlDotCirclePainter(
-                radius: 3,
-                color: AppTheme.infoColor,
-              ),
-            ),
-            belowBarData: BarAreaData(
-              show: true,
-              color: AppTheme.infoColor.withOpacity(0.1),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

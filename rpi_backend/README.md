@@ -1,35 +1,76 @@
-# Copra Watch RPI Backend
+# CopraWatch Raspberry Pi Backend
 
-Python backend for Raspberry Pi with mock sensors and API server.
+Flask API server for copra monitoring with MAX6675 and SHT30 sensors.
 
-## Features
+## Hardware Setup
 
-- **Mock Sensors**: Temperature, humidity, camera (replace with real when hardware arrives)
-- **SQLite Database**: Stores environmental data, images, classifications
-- **Flask API**: REST endpoints for mobile app communication
-- **System Logging**: Track all events
-
-## Setup
-
-### Prerequisites
-- Raspberry Pi 4B+
-- Python 3.8+
-- pip
-
-### Installation
-
-```bash
-cd rpi_backend
-pip install -r requirements.txt
+### MAX6675 (Temperature)
+```
+MAX6675 → Raspberry Pi
+VCC     → 3.3V (Pin 1)
+GND     → GND (Pin 6)
+SCK     → GPIO 11 (Pin 23)
+CS      → GPIO 8 (Pin 24)
+SO      → GPIO 9 (Pin 21)
 ```
 
-### Running the Server
-
-```bash
-python api_server.py
+### SHT30 (Humidity)
+```
+SHT30   → Raspberry Pi
+VCC     → 3.3V (Pin 1)
+GND     → GND (Pin 6)
+SDA     → GPIO 2 (Pin 3)
+SCL     → GPIO 3 (Pin 5)
 ```
 
-Server runs on `http://0.0.0.0:5000`
+## Software Setup
+
+### 1. Enable SPI (for MAX6675)
+```bash
+sudo raspi-config
+# Interface Options → SPI → Enable → Reboot
+```
+
+### 2. Enable I2C (for SHT30)
+```bash
+sudo raspi-config
+# Interface Options → I2C → Enable → Reboot
+```
+
+### 3. Install Dependencies
+```bash
+pip3 install -r requirements.txt --break-system-packages
+```
+
+Or install manually:
+```bash
+pip3 install Flask Flask-CORS RPi.GPIO --break-system-packages
+```
+
+For SHT30 (optional):
+```bash
+pip3 install adafruit-circuitpython-sht31d --break-system-packages
+```
+
+## Usage
+
+### Test Sensors Only
+```bash
+python3 test_sensors.py
+```
+
+### Start API Server
+```bash
+python3 api_server.py
+```
+
+Or use the startup script:
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+Server runs on: `http://0.0.0.0:5000`
 
 ## API Endpoints
 
@@ -38,65 +79,88 @@ Server runs on `http://0.0.0.0:5000`
 GET /api/health
 ```
 
-### Environmental Sensors
+### Get Current Sensor Data
 ```
 GET /api/sensor/environmental
+Response: {"temperature": 60.5, "humidity": 12.3, "timestamp": "..."}
+```
+
+### Get Historical Data
+```
 GET /api/sensor/environmental/history?limit=10
 ```
 
-### Camera
+### Capture Image
 ```
 POST /api/camera/capture
 ```
 
-### Classification
+### Store Classification
 ```
 POST /api/classification
-{
-  "image_id": 1,
-  "classification": "Optimally-Dried",
-  "confidence": 0.92
-}
+Body: {"image_id": 1, "classification": "Optimally-Dried", "confidence": 0.95}
 ```
 
-### History
+### Get All Classifications
 ```
 GET /api/classifications/all
 ```
 
-## Mock Data
+## Troubleshooting
 
-All sensors currently return mock data:
-- Temperature: 20-40°C (random walk)
-- Humidity: 50-90% (random walk)
-- Camera: Mock filename
-- Classifications: Stored in database
+### No sensor readings?
+1. Check wiring
+2. Verify SPI/I2C enabled: `ls /dev/spi*` and `ls /dev/i2c*`
+3. Run with sudo: `sudo python3 test_sensors.py`
 
-## Swapping Mock to Real
-
-Replace functions in `sensors.py` when hardware arrives:
-
-```python
-# Current (mock)
-def read(self):
-    return random.uniform(25, 35)
-
-# TODO: Replace with real sensor code
-# def read(self):
-#     return sensor.read_value()
+### Permission denied?
+```bash
+sudo usermod -a -G gpio,spi,i2c $USER
+# Log out and back in
 ```
 
-## Database
+### Mock data instead of real readings?
+- System automatically uses mock data if sensors not connected
+- Check console output for "✓" (working) or "✗" (mock)
 
-Tables:
-- `environmental_data` - Sensor readings
-- `images` - Captured images
-- `classifications` - ML results
-- `system_logs` - Events
+## Mobile App Connection
 
-## Next Steps
+Get your Pi's IP:
+```bash
+hostname -I
+```
 
-1. Test API endpoints locally
-2. Deploy to Raspberry Pi
-3. Connect Flutter app to API
-4. Add real sensor integration when hardware arrives
+In Flutter app Settings, enter:
+- IP: `192.168.x.x` (your Pi's IP)
+- Port: `5000`
+
+## Auto-Start on Boot
+
+Create systemd service:
+```bash
+sudo nano /etc/systemd/system/coprawatch.service
+```
+
+Add:
+```
+[Unit]
+Description=CopraWatch API Server
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Desktop/rpi_backend
+ExecStart=/usr/bin/python3 /home/pi/Desktop/rpi_backend/api_server.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable:
+```bash
+sudo systemctl enable coprawatch
+sudo systemctl start coprawatch
+sudo systemctl status coprawatch
+```

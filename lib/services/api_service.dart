@@ -72,6 +72,23 @@ class ApiService {
     }
   }
 
+  // Capture image from RPI camera
+  Future<Map<String, dynamic>?> captureImageFromRPI() async {
+    try {
+      final response = await _client
+          .post(Uri.parse('${ApiConstants.baseUrl}/api/camera/capture'))
+          .timeout(ApiConstants.receiveTimeout);
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      print('Error capturing from RPI: $e');
+      return null;
+    }
+  }
+
   // Get all classifications
   Future<List<ClassificationResult>> getClassifications() async {
     try {

@@ -106,6 +106,14 @@ Body: {"image_id": 1, "classification": "Optimally-Dried", "confidence": 0.95}
 GET /api/classifications/all
 ```
 
+### Save and list exports
+Exports are saved on the Raspberry Pi SD card in the backend `exports/` folder.
+```
+POST /api/exports?filename=report.pdf
+GET /api/exports
+GET /api/exports/<filename>
+```
+
 ## Troubleshooting
 
 ### No sensor readings?

@@ -32,7 +32,7 @@ class AppConstants {
   static const int maxDryingHours = 72;
 
   // API Configuration
-  static const String raspberryPiDefaultIP = '192.168.1.100';
+  static const String raspberryPiDefaultIP = '192.168.254.199';
   static const int raspberryPiDefaultPort = 5000;
   static const String apiBaseUrl = 'http://192.168.1.100:5000/api';
   static const int apiTimeoutSeconds = 30;
@@ -94,6 +94,7 @@ class ApiEndpoints {
 }
 
 class PreferenceKeys {
+  static const String userGuideSeen = 'user_guide_seen';
   static const String userId = 'user_id';
   static const String raspberryPiIP = 'raspberry_pi_ip';
   static const String raspberryPiPort = 'raspberry_pi_port';

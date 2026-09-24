@@ -109,7 +109,7 @@ class HistoryCard extends StatelessWidget {
                   _buildStatItem(
                     context,
                     'Moisture',
-                    '${batch.finalMoisture.toStringAsFixed(1)}%',
+                    batch.finalMoistureStatus,
                   ),
                 ],
               ),

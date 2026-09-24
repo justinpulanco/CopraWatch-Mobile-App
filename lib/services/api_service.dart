@@ -89,6 +89,55 @@ class ApiService {
     }
   }
 
+  // Download image from RPI camera
+  Future<List<int>?> downloadImageFromRPI(String filename) async {
+    try {
+      final response = await _client
+          .get(Uri.parse('${ApiConstants.baseUrl}/api/camera/image/$filename'))
+          .timeout(ApiConstants.receiveTimeout);
+
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      }
+      return null;
+    } catch (e) {
+      print('Error downloading image from RPI: $e');
+      return null;
+    }
+  }
+
+  Future<String?> uploadExport({
+    required String filename,
+    required List<int> bytes,
+    required String contentType,
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse(ApiConstants.exports).replace(
+          queryParameters: {'filename': filename},
+        ),
+        headers: {'Content-Type': contentType},
+        body: bytes,
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        if (body['success'] != true || body['verified'] != true) {
+          throw Exception(
+            'Old RPi backend at ${ApiConstants.baseUrl}. Copy the updated api_server.py and restart it.',
+          );
+        }
+        return body['filepath'] as String?;
+      }
+      throw Exception(
+        'RPi at ${ApiConstants.baseUrl} returned ${response.statusCode}: ${response.body}',
+      );
+    } catch (e) {
+      print('Error uploading export to RPI: $e');
+      rethrow;
+    }
+  }
+
   // Get all classifications
   Future<List<ClassificationResult>> getClassifications() async {
     try {

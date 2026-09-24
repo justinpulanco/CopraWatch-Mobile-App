@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
-import '../constants/app_constants.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -33,7 +32,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       backgroundColor: backgroundColor ?? AppTheme.primaryGreen,
       elevation: 2,
-      leading: showBackButton && context.canPop()
+      leading: showBackButton && (context.canPop() || onBackPressed != null)
           ? IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
               onPressed: onBackPressed ?? () => context.pop(),

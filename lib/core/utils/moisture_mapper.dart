@@ -17,39 +17,39 @@ class MoistureMapper {
     }
   }
 
-  /// Get display label in Tagalog
+  /// Get display label in Tagalog with English translation
   static String getMoistureDisplayTl(String moistureStatus) {
     switch (moistureStatus) {
       case 'too_wet':
-        return 'Masyadong Basang';
+        return 'Basa-basa (Wet / Under-Dried)';
       case 'slightly_squishy':
-        return 'Kaunting Lata';
+        return 'Kaunting Lata (Slightly Squishy)';
       case 'perfect':
-        return 'Perpekto Na';
+        return 'Tuyo (Perfectly-Dried)';
       case 'slightly_dry':
-        return 'Medyo Tuyo Na';
+        return 'Medyo Tuyo Na (Slightly Dry)';
       case 'too_dry':
-        return 'Sobrang Tuyo';
+        return 'Sunog (Over-Dried / Burned)';
       default:
-        return 'Hindi Alam';
+        return 'Hindi Alam (Unknown)';
     }
   }
 
-  /// Get display label in English
+  /// Get display label in English with Tagalog translation
   static String getMoistureDisplayEn(String moistureStatus) {
     switch (moistureStatus) {
       case 'too_wet':
-        return 'Too Wet';
+        return 'Basa-basa (Wet / Under-Dried)';
       case 'slightly_squishy':
-        return 'Slightly Squishy';
+        return 'Slightly Squishy (Kaunting Lata)';
       case 'perfect':
-        return 'Perfect';
+        return 'Tuyo (Perfectly-Dried)';
       case 'slightly_dry':
-        return 'Slightly Dry';
+        return 'Slightly Dry (Medyo Tuyo Na)';
       case 'too_dry':
-        return 'Too Dry';
+        return 'Sunog (Over-Dried / Burned)';
       default:
-        return 'Unknown';
+        return 'Unknown (Hindi Alam)';
     }
   }
 

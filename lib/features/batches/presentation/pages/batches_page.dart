@@ -8,6 +8,7 @@ import '../../../../models/batch_model.dart';
 import '../../../../services/batch_service.dart';
 import '../../../../services/alert_service.dart';
 import '../../../../services/pdf_service.dart';
+import '../../../../services/api_service.dart';
 
 class BatchesPage extends StatefulWidget {
   const BatchesPage({Key? key}) : super(key: key);
@@ -20,6 +21,7 @@ class _BatchesPageState extends State<BatchesPage> {
   final _batchService = BatchService();
   final _alertService = AlertService();
   final _pdfService = PdfService();
+  final _apiService = ApiService();
   
   List<Batch> _batches = [];
   bool _isLoading = true;
@@ -44,15 +46,32 @@ class _BatchesPageState extends State<BatchesPage> {
 
   void _showCreateBatchDialog() {
     final nameController = TextEditingController();
-    final moistureController = TextEditingController(text: '40.0');
+    String initialStatus = 'basa-basa';
 
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Create New Batch'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+            DropdownButtonFormField<String>(
+              value: initialStatus,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Initial Moisture Condition',
+              ),
+              items: const [
+                DropdownMenuItem(value: 'basa-basa', child: Text('Basa-basa (Wet)')),
+                DropdownMenuItem(value: 'tuyo', child: Text('Tuyo (Perfectly-Dried)')),
+                DropdownMenuItem(value: 'sunog', child: Text('Sunog (Burned)')),
+              ],
+              onChanged: (value) {
+                if (value != null) initialStatus = value;
+              },
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: nameController,
               decoration: const InputDecoration(
@@ -60,15 +79,8 @@ class _BatchesPageState extends State<BatchesPage> {
                 hintText: 'e.g., Batch #001',
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: moistureController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Initial Moisture %',
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -86,10 +98,10 @@ class _BatchesPageState extends State<BatchesPage> {
                 return;
               }
               
-              final moisture = double.tryParse(moistureController.text) ?? 40.0;
               await _batchService.createBatch(
                 name: nameController.text,
-                initialMoisture: moisture,
+                initialMoisture: 0,
+                initialMoistureStatus: initialStatus,
               );
               
               if (mounted) {
@@ -134,17 +146,12 @@ class _BatchesPageState extends State<BatchesPage> {
             _buildDetailRow(
               sheetContext,
               'Initial Moisture',
-              '${batch.initialMoisture.toStringAsFixed(2)}%',
+              batch.initialMoistureStatus,
             ),
             _buildDetailRow(
               sheetContext,
               'Final Moisture',
-              '${batch.finalMoisture.toStringAsFixed(2)}%',
-            ),
-            _buildDetailRow(
-              sheetContext,
-              'Reduction',
-              '${batch.moistureReduction.toStringAsFixed(2)}%',
+              batch.finalMoistureStatus,
             ),
             if (batch.qualityResult != null) ...[
               const Divider(height: 24),
@@ -186,6 +193,17 @@ class _BatchesPageState extends State<BatchesPage> {
                 child: const Text('Export as PDF'),
               ),
             ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () async {
+                  if (mounted) Navigator.pop(sheetContext);
+                  await _saveBatchPDFToPhone(batch);
+                },
+                child: const Text('Save PDF on Phone'),
+              ),
+            ),
           ],
         ),
       ),
@@ -193,9 +211,7 @@ class _BatchesPageState extends State<BatchesPage> {
   }
 
   Future<void> _completeBatch(Batch batch) async {
-    final moistureController = TextEditingController(
-      text: batch.finalMoisture.toString(),
-    );
+    String finalStatus = batch.finalMoistureStatus;
 
     showDialog(
       context: context,
@@ -204,12 +220,20 @@ class _BatchesPageState extends State<BatchesPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: moistureController,
-              keyboardType: TextInputType.number,
+            DropdownButtonFormField<String>(
+              value: finalStatus,
+              isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Final Moisture %',
+                labelText: 'Final Moisture Condition',
               ),
+              items: const [
+                DropdownMenuItem(value: 'basa-basa', child: Text('Basa-basa (Wet)')),
+                DropdownMenuItem(value: 'tuyo', child: Text('Tuyo (Perfectly-Dried)')),
+                DropdownMenuItem(value: 'sunog', child: Text('Sunog (Burned)')),
+              ],
+              onChanged: (value) {
+                if (value != null) finalStatus = value;
+              },
             ),
           ],
         ),
@@ -220,8 +244,11 @@ class _BatchesPageState extends State<BatchesPage> {
           ),
           TextButton(
             onPressed: () async {
-              final moisture = double.tryParse(moistureController.text) ?? 0;
-              await _batchService.completeBatch(batch.id, moisture);
+              await _batchService.completeBatchWithStatus(
+                batch.id,
+                0,
+                finalStatus,
+              );
               if (mounted) {
                 Navigator.pop(dialogContext);
                 _loadBatches();
@@ -242,24 +269,65 @@ class _BatchesPageState extends State<BatchesPage> {
     try {
       final alerts = await _alertService.getAlertsByBatch(batch.id);
       
-      await _pdfService.generateBatchReport(
+      final file = await _pdfService.generateBatchReport(
         batchName: batch.name,
         startDate: batch.startDate,
         endDate: batch.endDate,
         initialMoisture: batch.initialMoisture,
         finalMoisture: batch.finalMoisture,
+        initialMoistureStatus: batch.initialMoistureStatus,
+        finalMoistureStatus: batch.finalMoistureStatus,
         qualityResult: batch.qualityResult ?? 'N/A',
         confidence: batch.confidence ?? 0.0,
         alerts: alerts,
       );
+      final filepath = await _apiService.uploadExport(
+        filename: file.uri.pathSegments.last,
+        bytes: await file.readAsBytes(),
+        contentType: 'application/pdf',
+      );
+      if (filepath == null) throw Exception('Could not save PDF on Raspberry Pi');
+      await file.delete();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PDF exported successfully')),
+        SnackBar(
+          content: Text('PDF exported to RPi: $filepath'),
+          duration: const Duration(seconds: 5),
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error exporting PDF: $e')),
       );
+    }
+  }
+
+  Future<void> _saveBatchPDFToPhone(Batch batch) async {
+    try {
+      final alerts = await _alertService.getAlertsByBatch(batch.id);
+      final file = await _pdfService.generateBatchReport(
+        batchName: batch.name,
+        startDate: batch.startDate,
+        endDate: batch.endDate,
+        initialMoisture: batch.initialMoisture,
+        finalMoisture: batch.finalMoisture,
+        initialMoistureStatus: batch.initialMoistureStatus,
+        finalMoistureStatus: batch.finalMoistureStatus,
+        qualityResult: batch.qualityResult ?? 'N/A',
+        confidence: batch.confidence ?? 0.0,
+        alerts: alerts,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('PDF saved on phone: ${file.path}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Phone PDF export failed: $e')),
+        );
+      }
     }
   }
 
@@ -328,7 +396,7 @@ class _BatchesPageState extends State<BatchesPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Moisture: ${batch.finalMoisture.toStringAsFixed(2)}%',
+                    'Condition: ${batch.finalMoistureStatus}',
                     style: const TextStyle(fontSize: 12),
                   ),
                   Text(

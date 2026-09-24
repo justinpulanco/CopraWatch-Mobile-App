@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../core/constants/app_constants.dart';
 
 /// Machine Learning Service using TensorFlow Lite
@@ -19,6 +20,27 @@ class MLService {
   bool _isModelLoaded = false;
 
   bool get isModelLoaded => _isModelLoaded;
+
+  bool get supportsNonCopraDetection =>
+      _labels?.any((label) => label.toLowerCase().contains('non-copra')) ?? false;
+
+  Future<bool> containsHumanFace(String imagePath) async {
+    final detector = FaceDetector(
+      options: FaceDetectorOptions(
+        performanceMode: FaceDetectorMode.fast,
+        enableClassification: false,
+        enableLandmarks: false,
+        enableContours: false,
+      ),
+    );
+
+    try {
+      final faces = await detector.processImage(InputImage.fromFilePath(imagePath));
+      return faces.isNotEmpty;
+    } finally {
+      await detector.close();
+    }
+  }
 
   /// Load ML model and labels
   Future<bool> loadModel() async {

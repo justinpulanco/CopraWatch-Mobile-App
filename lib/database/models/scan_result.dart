@@ -17,39 +17,39 @@ class ScanResult {
     required this.batchId,
   });
 
-  /// Get moisture description in English
-  String get moistureDescriptionEn {
-    switch (moistureStatus) {
-      case 'too_wet':
-        return 'Too Wet';
-      case 'slightly_squishy':
-        return 'Slightly Squishy';
-      case 'perfect':
-        return 'Perfect';
-      case 'slightly_dry':
-        return 'Slightly Dry';
-      case 'too_dry':
-        return 'Too Dry';
-      default:
-        return 'Unknown';
-    }
-  }
-
-  /// Get moisture description in Tagalog
+  /// Get moisture description in Tagalog with English
   String get moistureDescriptionTl {
     switch (moistureStatus) {
       case 'too_wet':
-        return 'Masyadong Basang';
+        return 'Basa-basa (Wet / Under-Dried)';
       case 'slightly_squishy':
-        return 'Kaunting Lata';
+        return 'Kaunting Lata (Slightly Squishy)';
       case 'perfect':
-        return 'Perpekto Na';
+        return 'Tuyo (Perfectly-Dried)';
       case 'slightly_dry':
-        return 'Medyo Tuyo Na';
+        return 'Medyo Tuyo Na (Slightly Dry)';
       case 'too_dry':
-        return 'Sobrang Tuyo';
+        return 'Sunog (Over-Dried / Burned)';
       default:
-        return 'Hindi Alam';
+        return 'Hindi Alam (Unknown)';
+    }
+  }
+
+  /// Get moisture description in English with Tagalog
+  String get moistureDescriptionEn {
+    switch (moistureStatus) {
+      case 'too_wet':
+        return 'Basa-basa (Wet / Under-Dried)';
+      case 'slightly_squishy':
+        return 'Slightly Squishy (Kaunting Lata)';
+      case 'perfect':
+        return 'Tuyo (Perfectly-Dried)';
+      case 'slightly_dry':
+        return 'Slightly Dry (Medyo Tuyo Na)';
+      case 'too_dry':
+        return 'Sunog (Over-Dried / Burned)';
+      default:
+        return 'Unknown (Hindi Alam)';
     }
   }
 
@@ -77,6 +77,7 @@ class ScanResult {
       'classification': classification,
       'confidence': confidence,
       'imagePath': imagePath,
+      'moisture': 0.0,
       'moistureStatus': moistureStatus,
       'timestamp': timestamp.toIso8601String(),
       'batchId': batchId,

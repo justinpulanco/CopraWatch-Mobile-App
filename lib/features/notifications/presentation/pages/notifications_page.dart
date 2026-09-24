@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/notification_card.dart';
@@ -56,6 +57,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
         title: 'Notifications',
         subtitle: 'Recent Events & Alerts',
         actions: [
+          IconButton(
+            icon: const Icon(Icons.dashboard_rounded),
+            tooltip: 'Main Dashboard',
+            onPressed: () => context.go('/'),
+          ),
           if (unreadCount > 0)
             Padding(
               padding: const EdgeInsets.only(right: 8),

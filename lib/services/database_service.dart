@@ -185,8 +185,16 @@ class DatabaseService {
 
   /// Get all notifications
   Future<List<Map<String, dynamic>>> getAllNotifications() async {
-    final db = await database;
-    return await db.query('notifications', orderBy: 'timestamp DESC');
+    try {
+      final db = await database;
+      return await db.query('notifications', orderBy: 'timestamp DESC');
+    } catch (e) {
+      // Table may not exist yet, return empty list
+      if (e.toString().contains('no such table')) {
+        return [];
+      }
+      rethrow;
+    }
   }
 
   /// Get unread notifications

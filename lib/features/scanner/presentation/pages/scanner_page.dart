@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
-import '../../../../core/widgets/status_chip.dart';
+import '../../../../core/widgets/mjpeg_preview.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/utils/moisture_mapper.dart';
 import '../../../../database/database_helper.dart';
@@ -108,12 +108,10 @@ class _ScannerPageState extends State<ScannerPage> {
                       children: [
                         // Live preview with cached image
                         if (_lastPreviewUrl != null)
-                          Image.network(
-                            _lastPreviewUrl!,
-                            width: double.infinity,
-                            height: 300,
+                          MjpegPreview(
+                            url: _lastPreviewUrl!,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
+                            errorBuilder: (context) {
                               return Container(
                                 color: Colors.black,
                                 child: const Center(
@@ -173,11 +171,12 @@ class _ScannerPageState extends State<ScannerPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (_imageFile != null)
-                          Image.file(
-                            _imageFile!,
-                            width: double.infinity,
-                            height: 280,
-                            fit: BoxFit.cover,
+                          Flexible(
+                            child: Image.file(
+                              _imageFile!,
+                              width: double.infinity,
+                              fit: BoxFit.contain,
+                            ),
                           )
                         else
                           Icon(
@@ -186,14 +185,16 @@ class _ScannerPageState extends State<ScannerPage> {
                             color: AppTheme.primaryGreen,
                           ),
                         const SizedBox(height: 12),
-                        Text(
-                          'Image Ready for Classification',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                color: AppTheme.primaryGreen,
-                              ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            'Image Ready for Classification',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(color: AppTheme.primaryGreen),
+                          ),
                         ),
                       ],
                     )
@@ -344,7 +345,7 @@ class _ScannerPageState extends State<ScannerPage> {
                     _buildModelInfoRow(
                         'Input Size', '224x224 RGB'),
                     _buildModelInfoRow(
-                        'Output Classes', 'Under-Dried, Optimally-Dried, Over-Dried'),
+                        'Output Classes', 'Basa-basa, Tuyo, Sunog'),
                     _buildModelInfoRow(
                         'Min Confidence', '75%'),
                   ],
@@ -387,15 +388,17 @@ class _ScannerPageState extends State<ScannerPage> {
                           ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      _classificationResult!,
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineSmall
-                          ?.copyWith(
-                            color: color,
-                            fontWeight: FontWeight.bold,
-                          ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: Text(
+                        _classificationResult!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineSmall
+                            ?.copyWith(color: color, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ),
@@ -469,7 +472,10 @@ class _ScannerPageState extends State<ScannerPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _classificationResult != null ? _saveResult : null,
+                onPressed: _classificationResult != null &&
+                        _classificationResult != 'Copra image could not be verified'
+                  ? _saveResult
+                  : null,
                 child: const Text('Save Result'),
               ),
             ),
@@ -582,8 +588,8 @@ class _ScannerPageState extends State<ScannerPage> {
     setState(() => _isLoadingPreview = true);
     
     try {
-      // Load image once with timestamp to prevent caching
-      final imageUrl = '${ApiConstants.baseUrl}/api/camera/preview?t=${DateTime.now().millisecondsSinceEpoch}';
+      // Open the temporary MJPEG stream. It is not saved or recorded.
+      final imageUrl = '${ApiConstants.baseUrl}/api/camera/stream';
       
       setState(() {
         _lastPreviewUrl = imageUrl;
@@ -687,32 +693,80 @@ class _ScannerPageState extends State<ScannerPage> {
       // Check if we have a local file (from phone) or RPI image
       if (_imageFile != null) {
         // Phone camera - classify local file
+        final hasFace = await mlService.containsHumanFace(_imageFile!.path);
         final result = await mlService.classifyImage(imagePath: _imageFile!.path);
         setState(() {
-          _classificationResult = result.classification;
+          _classificationResult = hasFace
+              ? 'Copra image could not be verified'
+              : result.classification;
           _confidence = result.confidence;
           _isClassifying = false;
         });
       } else {
-        // RPI camera - download image first, then classify
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Downloading image from RPI...')),
-        );
-        
-        // For now, show mock result since downloading from RPI needs additional endpoint
-        // TODO: Add endpoint to download captured image from RPI
-        setState(() {
-          _classificationResult = 'Optimally-Dried';
-          _confidence = 0.87;
-          _isClassifying = false;
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Note: Using mock classification for RPI images'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        // RPI camera - download image and classify
+        try {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Downloading image from RPI...')),
+          );
+          
+          // Download image from RPi
+          final response = await _apiService.downloadImageFromRPI(_selectedImage!);
+          
+          if (response != null) {
+            // Save downloaded image temporarily to app cache
+            final directory = await getApplicationCacheDirectory();
+            File tempFile;
+            
+            try {
+              tempFile = File('${directory.path}/rpi_image.jpg');
+              await tempFile.writeAsBytes(response);
+            } catch (e) {
+              // If write fails, try using a unique filename
+              tempFile = File('${directory.path}/rpi_image_${DateTime.now().millisecondsSinceEpoch}.jpg');
+              await tempFile.writeAsBytes(response);
+            }
+            
+            final hasFace = await mlService.containsHumanFace(tempFile.path);
+            // Classify using ML
+            final result = await mlService.classifyImage(imagePath: tempFile.path);
+            
+            setState(() {
+              _classificationResult = hasFace
+                  ? 'Copra image could not be verified'
+                  : result.classification;
+              _confidence = result.confidence;
+              _isClassifying = false;
+            });
+            
+            // Clean up temp file
+            await tempFile.delete().catchError((_) => tempFile);
+            
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    hasFace
+                      ? 'Image is not recognized as copra'
+                      : 'RPI image classified',
+                  ),
+                  backgroundColor: AppTheme.successColor,
+                ),
+              );
+            }
+          } else {
+            throw Exception('Failed to download image from RPi');
+          }
+        } catch (e) {
+          setState(() => _isClassifying = false);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('RPI Error: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
       }
     } catch (e) {
       setState(() => _isClassifying = false);
@@ -743,39 +797,47 @@ class _ScannerPageState extends State<ScannerPage> {
   }
 
   void _saveResult() async {
-    final batchService = BatchService();
-    final activeBatches = await batchService.getActiveBatches();
-    final activeBatchId = activeBatches.isNotEmpty ? activeBatches.first.id : 'unknown';
+    try {
+      final batchService = BatchService();
+      final activeBatches = await batchService.getActiveBatches();
+      if (activeBatches.isEmpty) {
+        throw Exception('Create or start a batch before saving a result');
+      }
+      final activeBatchId = activeBatches.first.id;
+      final moistureStatus = MoistureMapper.classificationToMoistureStatus(_classificationResult!);
 
-    // Map classification to moisture status
-    final moistureStatus = MoistureMapper.classificationToMoistureStatus(_classificationResult!);
-
-    final result = ScanResult(
-      classification: _classificationResult!,
-      confidence: _confidence!,
-      imagePath: _imageFile?.path ?? '',
-      moistureStatus: moistureStatus,
-      timestamp: DateTime.now(),
-      batchId: activeBatchId,
-    );
-
-    await _db.insertScanResult(result);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Result saved successfully')),
+      final result = ScanResult(
+        classification: _classificationResult!,
+        confidence: _confidence!,
+        imagePath: _imageFile?.path ?? 'rpi://$_selectedImage',
+        moistureStatus: moistureStatus,
+        timestamp: DateTime.now(),
+        batchId: activeBatchId,
       );
-      
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          setState(() {
-            _selectedImage = null;
-            _imageFile = null;
-            _classificationResult = null;
-            _confidence = null;
-          });
-        }
+
+      await _db.insertScanResult(result);
+      await batchService.saveQualityResult(
+        batchId: activeBatchId,
+        classification: _classificationResult!,
+        confidence: _confidence!,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Result saved to ${activeBatches.first.name}')),
+      );
+      setState(() {
+        _selectedImage = null;
+        _imageFile = null;
+        _classificationResult = null;
+        _confidence = null;
       });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save result: $e')),
+        );
+      }
     }
   }
 }

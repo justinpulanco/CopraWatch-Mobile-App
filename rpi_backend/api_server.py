@@ -2,7 +2,8 @@
 Flask API Server for RPI Backend
 Communicates with Flutter Mobile App
 """
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, send_from_directory
+from werkzeug.utils import secure_filename
 from sensors import SensorManager
 from database import RPiDatabase
 from datetime import datetime
@@ -19,6 +20,9 @@ database = RPiDatabase("copra_data.db")
 
 # Camera stream process
 camera_stream_process = None
+BACKEND_VERSION = "2.0.0-exports"
+EXPORTS_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "exports")
+os.makedirs(EXPORTS_DIRECTORY, exist_ok=True)
 
 
 # Routes
@@ -30,7 +34,8 @@ def health_check():
     return jsonify({
         "status": "online",
         "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
+        "version": BACKEND_VERSION,
+        "exports_directory": os.path.abspath(EXPORTS_DIRECTORY),
     }), 200
 
 
@@ -118,6 +123,32 @@ def capture_image():
         }), 500
 
 
+@app.route('/api/camera/image/<filename>', methods=['GET'])
+def download_image(filename):
+    """Download captured image"""
+    try:
+        import os
+        from flask import send_file
+        
+        filepath = f"images/{filename}"
+        
+        if os.path.exists(filepath):
+            database.log_event("IMAGE_DOWNLOAD", f"Downloaded: {filename}")
+            return send_file(filepath, mimetype='image/jpeg')
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Image not found"
+            }), 404
+            
+    except Exception as e:
+        database.log_event("IMAGE_DOWNLOAD_ERROR", str(e))
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 @app.route('/api/classification', methods=['POST'])
 def classify_image():
     """Store classification result (ML placeholder)"""
@@ -164,6 +195,72 @@ def get_all_classifications():
             "success": False,
             "error": str(e)
         }), 500
+
+
+@app.route('/api/exports', methods=['POST'])
+def save_export():
+    """Save a PDF or CSV export on the Raspberry Pi storage."""
+    try:
+        filename = secure_filename(request.args.get('filename', 'export.bin'))
+        if not filename:
+            return jsonify({'success': False, 'error': 'Invalid filename'}), 400
+
+        os.makedirs(EXPORTS_DIRECTORY, exist_ok=True)
+        filepath = os.path.join(EXPORTS_DIRECTORY, filename)
+        with open(filepath, 'wb') as export_file:
+            export_file.write(request.get_data())
+
+        file_size = os.path.getsize(filepath)
+        if file_size == 0:
+            os.remove(filepath)
+            raise Exception('Export received no data')
+
+        database.log_event('EXPORT_SAVED', f'Export: {filename}')
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'filepath': os.path.abspath(filepath),
+            'size': file_size,
+            'verified': os.path.isfile(filepath),
+        }), 200
+    except Exception as e:
+        database.log_event('EXPORT_ERROR', str(e))
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/exports', methods=['GET'])
+def list_exports():
+    """List files saved in the Raspberry Pi export directory."""
+    try:
+        os.makedirs(EXPORTS_DIRECTORY, exist_ok=True)
+        files = []
+        for filename in sorted(os.listdir(EXPORTS_DIRECTORY)):
+            filepath = os.path.join(EXPORTS_DIRECTORY, filename)
+            if os.path.isfile(filepath):
+                files.append({
+                    'filename': filename,
+                    'filepath': os.path.abspath(filepath),
+                    'size': os.path.getsize(filepath),
+                })
+        return jsonify({
+            'success': True,
+            'directory': os.path.abspath(EXPORTS_DIRECTORY),
+            'files': files,
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/exports/<filename>', methods=['GET'])
+def download_export(filename):
+    """Download a saved PDF or CSV export from the Raspberry Pi."""
+    safe_name = secure_filename(filename)
+    if not safe_name or safe_name != filename:
+        return jsonify({'success': False, 'error': 'Invalid filename'}), 400
+    filepath = os.path.join(EXPORTS_DIRECTORY, safe_name)
+    if not os.path.isfile(filepath):
+        return jsonify({'success': False, 'error': 'Export not found'}), 404
+    return send_from_directory(EXPORTS_DIRECTORY, safe_name, as_attachment=True)
 
 
 @app.route('/api/system/logs', methods=['GET'])
@@ -367,6 +464,7 @@ def internal_error(error):
 if __name__ == '__main__':
     print("Starting Copra Watch RPI Backend API...")
     print("API running on http://0.0.0.0:5000")
+    print(f"Exports saved to {os.path.abspath(EXPORTS_DIRECTORY)}")
     print("Camera stream available on http://0.0.0.0:5000/api/camera/stream")
     database.log_event("STARTUP", "API Server started")
     

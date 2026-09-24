@@ -23,21 +23,33 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 3, // Increment version to force upgrade
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Drop and recreate all tables to fix any schema issues
-    await db.execute('DROP TABLE IF EXISTS scan_results');
-    await db.execute('DROP TABLE IF EXISTS batches');
-    await db.execute('DROP TABLE IF EXISTS alerts');
-    await db.execute('DROP TABLE IF EXISTS pending_sync');
-    
-    // Recreate all tables with correct schema
-    await _onCreate(db, newVersion);
+    final columns = await db.rawQuery('PRAGMA table_info(scan_results)');
+    final columnNames = columns.map((column) => column['name']).toSet();
+    if (!columnNames.contains('moisture')) {
+      await db.execute(
+        "ALTER TABLE scan_results ADD COLUMN moisture REAL NOT NULL DEFAULT 0",
+      );
+    }
+    if (!columnNames.contains('moistureStatus')) {
+      await db.execute(
+        "ALTER TABLE scan_results ADD COLUMN moistureStatus TEXT NOT NULL DEFAULT 'unknown'",
+      );
+    }
+    final batchColumns = await db.rawQuery('PRAGMA table_info(batches)');
+    final batchColumnNames = batchColumns.map((column) => column['name']).toSet();
+    if (!batchColumnNames.contains('initialMoistureStatus')) {
+      await db.execute("ALTER TABLE batches ADD COLUMN initialMoistureStatus TEXT NOT NULL DEFAULT 'basa-basa'");
+    }
+    if (!batchColumnNames.contains('finalMoistureStatus')) {
+      await db.execute("ALTER TABLE batches ADD COLUMN finalMoistureStatus TEXT NOT NULL DEFAULT 'basa-basa'");
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -48,7 +60,8 @@ class DatabaseHelper {
         classification TEXT NOT NULL,
         confidence REAL NOT NULL,
         imagePath TEXT NOT NULL,
-        moisture REAL NOT NULL,
+        moisture REAL NOT NULL DEFAULT 0,
+        moistureStatus TEXT NOT NULL DEFAULT 'unknown',
         timestamp TEXT NOT NULL,
         batchId TEXT NOT NULL,
         synced INTEGER DEFAULT 0
@@ -64,6 +77,8 @@ class DatabaseHelper {
         endDate TEXT,
         initialMoisture REAL NOT NULL,
         finalMoisture REAL NOT NULL,
+        initialMoistureStatus TEXT NOT NULL DEFAULT 'basa-basa',
+        finalMoistureStatus TEXT NOT NULL DEFAULT 'basa-basa',
         status TEXT NOT NULL,
         qualityResult TEXT,
         confidence REAL,

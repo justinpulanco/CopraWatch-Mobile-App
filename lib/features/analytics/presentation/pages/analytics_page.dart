@@ -5,12 +5,60 @@ import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/routes/app_router.dart';
+import '../../../../models/batch_model.dart';
+import '../../../../services/batch_service.dart';
 
-class AnalyticsPage extends StatelessWidget {
+class AnalyticsPage extends StatefulWidget {
   const AnalyticsPage({Key? key}) : super(key: key);
 
   @override
+  State<AnalyticsPage> createState() => _AnalyticsPageState();
+}
+
+class _AnalyticsPageState extends State<AnalyticsPage> {
+  final BatchService _batchService = BatchService();
+  List<Batch> _completedBatches = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnalyticsData();
+  }
+
+  Future<void> _loadAnalyticsData() async {
+    final batches = await _batchService.getAllBatches();
+    if (!mounted) return;
+    setState(() {
+      _completedBatches =
+          batches.where((batch) => batch.status == 'completed').toList();
+      _isLoading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_completedBatches.isEmpty) {
+      return _buildEmptyAnalytics(context);
+    }
+
+    final totalBatches = _completedBatches.length;
+    final optimalCount = _countQuality('optimally');
+    final underCount = _countQuality('under');
+    final overCount = _countQuality('over');
+    final averageDuration = _completedBatches
+            .map((batch) => batch.dryingDuration.inMinutes)
+            .reduce((a, b) => a + b) /
+        totalBatches /
+        60;
+    final successRate = optimalCount / totalBatches * 100;
+
     return Scaffold(
       appBar: CustomAppBar(
         title: 'Analytics & Insights',
@@ -44,21 +92,21 @@ class AnalyticsPage extends StatelessWidget {
                 _buildSummaryCard(
                   context,
                   'Total Batches',
-                  '12',
+                  '$totalBatches',
                   Icons.category_rounded,
                   AppTheme.primaryGreen,
                 ),
                 _buildSummaryCard(
                   context,
                   'Avg Duration',
-                  '48.5h',
+                  '${averageDuration.toStringAsFixed(1)}h',
                   Icons.schedule_rounded,
                   AppTheme.accentOrange,
                 ),
                 _buildSummaryCard(
                   context,
                   'Success Rate',
-                  '91.7%',
+                  '${successRate.toStringAsFixed(1)}%',
                   Icons.trending_up_rounded,
                   AppTheme.successColor,
                 ),
@@ -86,9 +134,9 @@ class AnalyticsPage extends StatelessWidget {
                         PieChartData(
                           sections: [
                             PieChartSectionData(
-                              value: 75,
+                              value: optimalCount.toDouble(),
                               color: AppTheme.successColor,
-                              title: '75%',
+                              title: '${_percentage(optimalCount, totalBatches)}%',
                               radius: 60,
                               titleStyle: Theme.of(context)
                                   .textTheme
@@ -99,9 +147,9 @@ class AnalyticsPage extends StatelessWidget {
                                   ),
                             ),
                             PieChartSectionData(
-                              value: 17,
+                              value: underCount.toDouble(),
                               color: AppTheme.infoColor,
-                              title: '17%',
+                              title: '${_percentage(underCount, totalBatches)}%',
                               radius: 60,
                               titleStyle: Theme.of(context)
                                   .textTheme
@@ -112,9 +160,9 @@ class AnalyticsPage extends StatelessWidget {
                                   ),
                             ),
                             PieChartSectionData(
-                              value: 8,
+                              value: overCount.toDouble(),
                               color: AppTheme.warningColor,
-                              title: '8%',
+                              title: '${_percentage(overCount, totalBatches)}%',
                               radius: 60,
                               titleStyle: Theme.of(context)
                                   .textTheme
@@ -181,14 +229,8 @@ class AnalyticsPage extends StatelessWidget {
                               sideTitles: SideTitles(
                                 showTitles: true,
                                 getTitlesWidget: (value, meta) {
-                                  const titles = [
-                                    'W1',
-                                    'W2',
-                                    'W3',
-                                    'W4',
-                                  ];
                                   return Text(
-                                    titles[value.toInt() % 4],
+                                    _durationTitle(value.toInt()),
                                     style: const TextStyle(fontSize: 10),
                                   );
                                 },
@@ -220,7 +262,7 @@ class AnalyticsPage extends StatelessWidget {
                               x: 0,
                               barRods: [
                                 BarChartRodData(
-                                  toY: 45,
+                                  toY: _durationAt(0),
                                   color: AppTheme.primaryGreen,
                                   width: 20,
                                 ),
@@ -230,7 +272,7 @@ class AnalyticsPage extends StatelessWidget {
                               x: 1,
                               barRods: [
                                 BarChartRodData(
-                                  toY: 50,
+                                  toY: _durationAt(1),
                                   color: AppTheme.primaryGreen,
                                   width: 20,
                                 ),
@@ -240,7 +282,7 @@ class AnalyticsPage extends StatelessWidget {
                               x: 2,
                               barRods: [
                                 BarChartRodData(
-                                  toY: 48,
+                                  toY: _durationAt(2),
                                   color: AppTheme.primaryGreen,
                                   width: 20,
                                 ),
@@ -250,7 +292,7 @@ class AnalyticsPage extends StatelessWidget {
                               x: 3,
                               barRods: [
                                 BarChartRodData(
-                                  toY: 52,
+                                  toY: _durationAt(3),
                                   color: AppTheme.primaryGreen,
                                   width: 20,
                                 ),
@@ -307,14 +349,14 @@ class AnalyticsPage extends StatelessWidget {
                     const SizedBox(height: 16),
                     _buildRecommendation(
                       context,
-                      'Optimal Temperature',
-                      'Current average is 58.5°C which is ideal. Maintain this range.',
+                      'Batch history',
+                      '$totalBatches completed batch records are included in these results.',
                     ),
                     const SizedBox(height: 12),
                     _buildRecommendation(
                       context,
-                      'Humidity Control',
-                      'Increase air circulation during 2-4 PM for better results.',
+                      'Quality coverage',
+                      'Quality distribution is based only on saved batch results.',
                     ),
                   ],
                 ),
@@ -339,28 +381,28 @@ class AnalyticsPage extends StatelessWidget {
                     _buildMetricRow(
                       context,
                       'Consistency',
-                      'High',
+                      totalBatches > 1 ? 'Measured' : 'Needs more data',
                       AppTheme.successColor,
                     ),
                     const SizedBox(height: 12),
                     _buildMetricRow(
                       context,
                       'Quality Score',
-                      '4.5/5.0',
+                      '${successRate.toStringAsFixed(1)}% optimal',
                       AppTheme.primaryGreen,
                     ),
                     const SizedBox(height: 12),
                     _buildMetricRow(
                       context,
                       'Energy Efficiency',
-                      '92%',
+                      'No data',
                       AppTheme.accentOrange,
                     ),
                     const SizedBox(height: 12),
                     _buildMetricRow(
                       context,
                       'Solar Utilization',
-                      '88%',
+                      'No data',
                       AppTheme.infoColor,
                     ),
                   ],
@@ -376,6 +418,71 @@ class AnalyticsPage extends StatelessWidget {
         currentLocation: AppRoutes.analytics,
       ),
     );
+  }
+
+  Widget _buildEmptyAnalytics(BuildContext context) {
+    return Scaffold(
+      appBar: CustomAppBar(
+        title: 'Analytics & Insights',
+        subtitle: 'Data-Driven Performance',
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppConstants.defaultPadding),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.analytics_outlined,
+                size: 64,
+                color: AppTheme.textSecondary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No analytics data yet',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Complete a drying batch to see real performance data here.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: CustomBottomNavigation(
+        currentLocation: AppRoutes.analytics,
+      ),
+    );
+  }
+
+  int _countQuality(String value) {
+    return _completedBatches.where((batch) {
+      final quality = batch.qualityResult?.toLowerCase() ?? '';
+      return quality.contains(value);
+    }).length;
+  }
+
+  int _percentage(int value, int total) {
+    return (value / total * 100).round();
+  }
+
+  double _durationAt(int index) {
+    final sorted = [..._completedBatches]
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+    if (index >= sorted.length) return 0;
+    return sorted[index].dryingDuration.inMinutes / 60;
+  }
+
+  String _durationTitle(int index) {
+    final sorted = [..._completedBatches]
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+    if (index >= sorted.length) return '';
+    return 'B${index + 1}';
   }
 
   Widget _buildSummaryCard(

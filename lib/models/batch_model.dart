@@ -7,6 +7,8 @@ class Batch {
   final DateTime? endDate;
   final double initialMoisture;
   final double finalMoisture;
+  final String initialMoistureStatus;
+  final String finalMoistureStatus;
   final String status; // 'active', 'completed', 'paused'
   final List<SensorReading> readings;
   final String? qualityResult;
@@ -20,6 +22,8 @@ class Batch {
     this.endDate,
     required this.initialMoisture,
     required this.finalMoisture,
+    this.initialMoistureStatus = 'basa-basa',
+    this.finalMoistureStatus = 'basa-basa',
     required this.status,
     required this.readings,
     this.qualityResult,
@@ -30,8 +34,9 @@ class Batch {
   Duration get dryingDuration =>
       (endDate ?? DateTime.now()).difference(startDate);
 
-  double get moistureReduction =>
-      ((initialMoisture - finalMoisture) / initialMoisture) * 100;
+    double get moistureReduction => initialMoisture > 0
+      ? ((initialMoisture - finalMoisture) / initialMoisture) * 100
+      : 0;
 
   bool get isActive => status == 'active';
 
@@ -54,6 +59,8 @@ class Batch {
       'endDate': endDate?.toIso8601String(),
       'initialMoisture': initialMoisture,
       'finalMoisture': finalMoisture,
+      'initialMoistureStatus': initialMoistureStatus,
+      'finalMoistureStatus': finalMoistureStatus,
       'status': status,
       'qualityResult': qualityResult,
       'confidence': confidence,
@@ -69,6 +76,8 @@ class Batch {
       endDate: map['endDate'] != null ? DateTime.parse(map['endDate']) : null,
       initialMoisture: map['initialMoisture'] ?? 0.0,
       finalMoisture: map['finalMoisture'] ?? 0.0,
+      initialMoistureStatus: map['initialMoistureStatus'] ?? 'basa-basa',
+      finalMoistureStatus: map['finalMoistureStatus'] ?? 'basa-basa',
       status: map['status'] ?? 'active',
       readings: [],
       qualityResult: map['qualityResult'],
@@ -84,6 +93,8 @@ class Batch {
     DateTime? endDate,
     double? initialMoisture,
     double? finalMoisture,
+    String? initialMoistureStatus,
+    String? finalMoistureStatus,
     String? status,
     List<SensorReading>? readings,
     String? qualityResult,
@@ -97,6 +108,8 @@ class Batch {
       endDate: endDate ?? this.endDate,
       initialMoisture: initialMoisture ?? this.initialMoisture,
       finalMoisture: finalMoisture ?? this.finalMoisture,
+      initialMoistureStatus: initialMoistureStatus ?? this.initialMoistureStatus,
+      finalMoistureStatus: finalMoistureStatus ?? this.finalMoistureStatus,
       status: status ?? this.status,
       readings: readings ?? this.readings,
       qualityResult: qualityResult ?? this.qualityResult,

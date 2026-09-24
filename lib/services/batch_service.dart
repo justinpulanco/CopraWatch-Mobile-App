@@ -11,11 +11,13 @@ class BatchService {
   Future<Batch> createBatch({
     required String name,
     required double initialMoisture,
+    String initialMoistureStatus = 'basa-basa',
   }) async {
     final batch = Batch(
       name: name,
       startDate: DateTime.now(),
       initialMoisture: initialMoisture,
+      initialMoistureStatus: initialMoistureStatus,
       finalMoisture: initialMoisture,
       status: 'active',
       readings: [],
@@ -80,10 +82,42 @@ class BatchService {
     }
   }
 
+  Future<void> completeBatchWithStatus(
+    String batchId,
+    double finalMoisture,
+    String finalMoistureStatus,
+  ) async {
+    final batch = await _db.getBatchById(batchId);
+    if (batch != null) {
+      await _db.updateBatch({
+        ...batch,
+        'status': 'completed',
+        'finalMoisture': finalMoisture,
+        'finalMoistureStatus': finalMoistureStatus,
+        'endDate': DateTime.now().toIso8601String(),
+      });
+    }
+  }
+
   // Get active batches
   Future<List<Batch>> getActiveBatches() async {
     final allBatches = await getAllBatches();
     return allBatches.where((b) => b.isActive).toList();
+  }
+
+  Future<void> saveQualityResult({
+    required String batchId,
+    required String classification,
+    required double confidence,
+  }) async {
+    final batch = await _db.getBatchById(batchId);
+    if (batch == null) throw Exception('Batch not found');
+
+    await _db.updateBatch({
+      ...batch,
+      'qualityResult': classification,
+      'confidence': confidence,
+    });
   }
 
   // Get batch statistics

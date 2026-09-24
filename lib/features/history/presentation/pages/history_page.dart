@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/csv_exporter.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
 import '../../../../core/widgets/history_card.dart';
 import '../../../../core/widgets/empty_state_widget.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../services/api_service.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../models/batch_model.dart';
 import '../../../../services/batch_service.dart';
 import '../../../../services/database_service.dart';
+import '../../../../database/models/scan_result.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({Key? key}) : super(key: key);
@@ -225,8 +231,6 @@ class _HistoryPageState extends State<HistoryPage> {
             const SizedBox(height: 16),
             _detailRow('Status', batch.status.toUpperCase()),
             _detailRow('Duration', '${batch.dryingDuration.inHours}h'),
-            _detailRow('Initial Moisture', '${batch.initialMoisture}%'),
-            _detailRow('Final Moisture', '${batch.finalMoisture}%'),
             if (batch.qualityResult != null)
               _detailRow('Quality', batch.qualityResult!),
             const SizedBox(height: 16),
@@ -304,8 +308,8 @@ class _HistoryPageState extends State<HistoryPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Export Data'),
-        content: const Text('Export batch history as CSV?'),
+        title: const Text('Export Batch Data'),
+        content: const Text('Choose what to export:'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -314,14 +318,83 @@ class _HistoryPageState extends State<HistoryPage> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Data exported successfully')),
-              );
+              _exportAllBatches();
             },
-            child: const Text('Export'),
+            child: const Text('CSV to RPi'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _exportAllBatchesToPhone();
+            },
+            child: const Text('CSV to Phone'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _exportAllBatches() async {
+    try {
+      // Show loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Generating CSV...')),
+        );
+      }
+
+      // Generate CSV content
+      final csvContent = CSVExporter.generateAllBatchesCSV(_batches);
+      
+      final filename = CSVExporter.getExportFilename(allBatches: true);
+      final filepath = await ApiService().uploadExport(
+        filename: filename,
+        bytes: utf8.encode(csvContent),
+        contentType: 'text/csv',
+      );
+      if (filepath == null) throw Exception('Could not save export on Raspberry Pi');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Exported to RPi: $filepath'),
+            backgroundColor: AppTheme.successColor,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportAllBatchesToPhone() async {
+    try {
+      final directory = await getDownloadsDirectory() ??
+          await getApplicationDocumentsDirectory();
+      final filename = CSVExporter.getExportFilename(allBatches: true);
+      final file = File('${directory.path}/$filename');
+      await file.writeAsString(
+        CSVExporter.generateAllBatchesCSV(_batches),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('CSV saved on phone: ${file.path}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Phone CSV export failed: $e')),
+        );
+      }
+    }
   }
 }

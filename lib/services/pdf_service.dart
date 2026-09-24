@@ -11,6 +11,8 @@ class PdfService {
     required DateTime? endDate,
     required double initialMoisture,
     required double finalMoisture,
+    required String initialMoistureStatus,
+    required String finalMoistureStatus,
     required String qualityResult,
     required double confidence,
     required List<Map<String, dynamic>> alerts,
@@ -18,8 +20,6 @@ class PdfService {
     final pdf = pw.Document();
 
     final duration = endDate?.difference(startDate) ?? DateTime.now().difference(startDate);
-    final moistureReduction = ((initialMoisture - finalMoisture) / initialMoisture * 100).toStringAsFixed(2);
-
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -51,15 +51,14 @@ class PdfService {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text('Duration: ${duration.inHours}h ${duration.inMinutes % 60}m'),
-                  pw.Text('Initial Moisture: ${initialMoisture.toStringAsFixed(2)}%'),
+                  pw.Text('Initial Condition: $initialMoistureStatus'),
                 ],
               ),
               pw.SizedBox(height: 8),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Final Moisture: ${finalMoisture.toStringAsFixed(2)}%'),
-                  pw.Text('Reduction: $moistureReduction%'),
+                  pw.Text('Final Condition: $finalMoistureStatus'),
                 ],
               ),
               pw.SizedBox(height: 20),
@@ -99,8 +98,9 @@ class PdfService {
       ),
     );
 
-    // Save to documents directory
-    final dir = await getApplicationDocumentsDirectory();
+    // Prefer a user-visible folder so exported reports are easy to find.
+    final dir = await getDownloadsDirectory() ??
+      await getApplicationDocumentsDirectory();
     final fileName = 'CopraWatch_${batchName}_${DateTime.now().millisecondsSinceEpoch}.pdf';
     final file = File('${dir.path}/$fileName');
 

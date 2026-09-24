@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../services/raspberry_pi_service.dart';
+import '../../../../core/widgets/user_guide_dialog.dart';
+import '../../../../core/routes/app_router.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -87,6 +90,8 @@ class _SettingsPageState extends State<SettingsPage> {
       appBar: CustomAppBar(
         title: 'Settings',
         subtitle: 'Configuration & Preferences',
+        showBackButton: true,
+        onBackPressed: () => context.go(AppRoutes.dashboard),
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -115,6 +120,10 @@ class _SettingsPageState extends State<SettingsPage> {
               () => _showTemperatureUnitDialog(),
             ),
             _buildButton('Calibrate Sensors', _calibrateSensors),
+            _buildButton(
+              'Open User Guide',
+              () => showUserGuide(context),
+            ),
             const Divider(height: 24),
 
             // Notifications

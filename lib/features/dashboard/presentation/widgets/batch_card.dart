@@ -70,21 +70,6 @@ class BatchCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStat(
-                  context,
-                  'Initial',
-                  '${batch.initialMoisture.toStringAsFixed(1)}%',
-                ),
-                _buildStat(
-                  context,
-                  'Current',
-                  '${batch.finalMoisture.toStringAsFixed(1)}%',
-                ),
-                _buildStat(
-                  context,
-                  'Reduction',
-                  '${batch.moistureReduction.toStringAsFixed(1)}%',
-                ),
               ],
             ),
           ],

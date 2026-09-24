@@ -8,6 +8,7 @@ import 'core/constants/app_constants.dart';
 import 'core/constants/api_constants.dart';
 import 'services/sync_service.dart';
 import 'services/notification_service.dart';
+import 'core/widgets/user_guide_dialog.dart';
 
 // Global navigator key for showing overlays
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -30,6 +31,14 @@ void main() async {
   _setupAutoSync();
 
   runApp(const ProviderScope(child: CopraWatchApp()));
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    if (prefs.getBool(PreferenceKeys.userGuideSeen) == true) return;
+    await prefs.setBool(PreferenceKeys.userGuideSeen, true);
+    final context = navigatorKey.currentState?.overlay?.context;
+    if (context != null && context.mounted) {
+      await showUserGuide(context);
+    }
+  });
 }
 
 void _setupAutoSync() {

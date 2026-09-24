@@ -9,6 +9,7 @@ class ApiConstants {
   static String get captureImage => '$baseUrl/api/camera/capture';
   static String get classification => '$baseUrl/api/classification';
   static String get classificationsAll => '$baseUrl/api/classifications/all';
+  static String get exports => '$baseUrl/api/exports';
 
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 10);

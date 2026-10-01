@@ -1,11 +1,13 @@
 import '../database/database_helper.dart';
 import '../models/batch_model.dart';
 import 'sync_service.dart';
+import 'api_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 class BatchService {
   final DatabaseHelper _db = DatabaseHelper();
   final SyncService _sync = SyncService();
+  final ApiService _api = ApiService();
 
   // Create new batch
   Future<Batch> createBatch({
@@ -19,6 +21,7 @@ class BatchService {
       initialMoisture: initialMoisture,
       initialMoistureStatus: initialMoistureStatus,
       finalMoisture: initialMoisture,
+      finalMoistureStatus: initialMoistureStatus, // Set same as initial
       status: 'active',
       readings: [],
     );
@@ -28,7 +31,13 @@ class BatchService {
       'createdAt': DateTime.now().toIso8601String(),
     };
 
-    await _db.insertBatch(batchMap);
+    try {
+      await _db.insertBatch(batchMap);
+      print('Batch created successfully: ${batch.id}');
+    } catch (e) {
+      print('Error creating batch: $e');
+      rethrow;
+    }
     
     // Queue for sync if offline
     final connectivityResult = await Connectivity().checkConnectivity();
@@ -87,14 +96,69 @@ class BatchService {
     double finalMoisture,
     String finalMoistureStatus,
   ) async {
+    try {
+      final batch = await _db.getBatchById(batchId);
+      if (batch != null) {
+        // Fetch current environmental data
+        final envData = await _api.getEnvironmentalData();
+        
+        final endTemp = envData?.temperature ?? 0.0;
+        final endHumid = envData?.humidity ?? 0.0;
+        
+        // Calculate averages
+        final startTemp = batch['startTemperature'] ?? endTemp;
+        final startHumid = batch['startHumidity'] ?? endHumid;
+        final avgTemp = (startTemp + endTemp) / 2;
+        final avgHumid = (startHumid + endHumid) / 2;
+        
+        await _db.updateBatch({
+          ...batch,
+          'status': 'completed',
+          'finalMoisture': finalMoisture,
+          'finalMoistureStatus': finalMoistureStatus,
+          'endDate': DateTime.now().toIso8601String(),
+          'endTemperature': endTemp,
+          'endHumidity': endHumid,
+          'averageTemperature': avgTemp,
+          'averageHumidity': avgHumid,
+        });
+        
+        print('Batch completed with temp: ${endTemp}°C, humidity: ${endHumid}%');
+      }
+    } catch (e) {
+      print('Error completing batch: $e');
+      rethrow;
+    }
+  }
+
+  // Pause batch
+  Future<void> pauseBatch(String batchId) async {
     final batch = await _db.getBatchById(batchId);
-    if (batch != null) {
+    if (batch != null && batch['status'] == 'active') {
       await _db.updateBatch({
         ...batch,
-        'status': 'completed',
-        'finalMoisture': finalMoisture,
-        'finalMoistureStatus': finalMoistureStatus,
-        'endDate': DateTime.now().toIso8601String(),
+        'status': 'paused',
+        'pausedAt': DateTime.now().toIso8601String(),
+      });
+    }
+  }
+
+  // Resume batch
+  Future<void> resumeBatch(String batchId) async {
+    final batch = await _db.getBatchById(batchId);
+    if (batch != null && batch['status'] == 'paused') {
+      // Calculate paused duration
+      final pausedAt = batch['pausedAt'] != null 
+          ? DateTime.parse(batch['pausedAt']) 
+          : DateTime.now();
+      final pausedMinutes = DateTime.now().difference(pausedAt).inMinutes;
+      final totalPausedMinutes = (batch['pausedDurationMinutes'] ?? 0) + pausedMinutes;
+      
+      await _db.updateBatch({
+        ...batch,
+        'status': 'active',
+        'pausedAt': null,
+        'pausedDurationMinutes': totalPausedMinutes,
       });
     }
   }

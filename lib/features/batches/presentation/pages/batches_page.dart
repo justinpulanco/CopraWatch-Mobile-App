@@ -35,10 +35,17 @@ class _BatchesPageState extends State<BatchesPage> {
   Future<void> _loadBatches() async {
     setState(() => _isLoading = true);
     try {
+      print('Loading batches...');
       final batches = await _batchService.getAllBatches();
+      print('Loaded ${batches.length} batches');
       setState(() => _batches = batches);
     } catch (e) {
       print('Error loading batches: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading batches: $e')),
+        );
+      }
     } finally {
       setState(() => _isLoading = false);
     }
@@ -63,9 +70,9 @@ class _BatchesPageState extends State<BatchesPage> {
                 labelText: 'Initial Moisture Condition',
               ),
               items: const [
-                DropdownMenuItem(value: 'basa-basa', child: Text('Basa-basa (Wet)')),
-                DropdownMenuItem(value: 'tuyo', child: Text('Tuyo (Perfectly-Dried)')),
-                DropdownMenuItem(value: 'sunog', child: Text('Sunog (Burned)')),
+                DropdownMenuItem(value: 'basa-basa', child: Text('Under-dried (Not yet)')),
+                DropdownMenuItem(value: 'tuyo', child: Text('Optimally-dried (Perfect)')),
+                DropdownMenuItem(value: 'sunog', child: Text('Over-dried (Burnt)')),
               ],
               onChanged: (value) {
                 if (value != null) initialStatus = value;
@@ -165,20 +172,67 @@ class _BatchesPageState extends State<BatchesPage> {
             ],
             const SizedBox(height: 16),
             if (batch.isActive) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        if (mounted) Navigator.pop(sheetContext);
+                        await _pauseBatch(batch);
+                      },
+                      icon: const Icon(Icons.pause),
+                      label: const Text('Pause Batch'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        if (mounted) Navigator.pop(sheetContext);
+                        await _completeBatch(batch);
+                      },
+                      icon: const Icon(Icons.check),
+                      label: const Text('Complete'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.successColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (batch.isPaused) ...[
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    if (mounted) Navigator.pop(sheetContext);
+                    await _resumeBatch(batch);
+                  },
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Resume Batch'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGreen,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
                   onPressed: () async {
                     if (mounted) Navigator.pop(sheetContext);
                     await _completeBatch(batch);
                   },
+                  icon: const Icon(Icons.check),
+                  label: const Text('Mark as Completed'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.successColor,
                   ),
-                  child: const Text('Mark as Completed'),
                 ),
               ),
-              const SizedBox(height: 8),
             ],
             SizedBox(
               width: double.infinity,
@@ -210,6 +264,50 @@ class _BatchesPageState extends State<BatchesPage> {
     );
   }
 
+  Future<void> _pauseBatch(Batch batch) async {
+    try {
+      await _batchService.pauseBatch(batch.id);
+      _loadBatches();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⏸️ Batch paused - timer stopped'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error pausing batch: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _resumeBatch(Batch batch) async {
+    try {
+      await _batchService.resumeBatch(batch.id);
+      _loadBatches();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('▶️ Batch resumed - timer restarted'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error resuming batch: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _completeBatch(Batch batch) async {
     String finalStatus = batch.finalMoistureStatus;
 
@@ -227,9 +325,9 @@ class _BatchesPageState extends State<BatchesPage> {
                 labelText: 'Final Moisture Condition',
               ),
               items: const [
-                DropdownMenuItem(value: 'basa-basa', child: Text('Basa-basa (Wet)')),
-                DropdownMenuItem(value: 'tuyo', child: Text('Tuyo (Perfectly-Dried)')),
-                DropdownMenuItem(value: 'sunog', child: Text('Sunog (Burned)')),
+                DropdownMenuItem(value: 'basa-basa', child: Text('Under-dried (Not yet)')),
+                DropdownMenuItem(value: 'tuyo', child: Text('Optimally-dried (Perfect)')),
+                DropdownMenuItem(value: 'sunog', child: Text('Over-dried (Burnt)')),
               ],
               onChanged: (value) {
                 if (value != null) finalStatus = value;
@@ -354,7 +452,9 @@ class _BatchesPageState extends State<BatchesPage> {
         ? AppTheme.successColor
         : status == 'active'
             ? AppTheme.primaryGreen
-            : AppTheme.warningColor;
+            : status == 'paused'
+                ? Colors.orange
+                : AppTheme.warningColor;
 
     return Card(
       child: InkWell(
@@ -381,7 +481,7 @@ class _BatchesPageState extends State<BatchesPage> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      status.toUpperCase(),
+                      status == 'paused' ? '⏸️ PAUSED' : status.toUpperCase(),
                       style: TextStyle(
                         color: statusColor,
                         fontSize: 10,
@@ -406,9 +506,32 @@ class _BatchesPageState extends State<BatchesPage> {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
-                _formatDate(batch.startDate),
-                style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      _formatDate(batch.startDate),
+                      style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                    ),
+                  ),
+                  if (batch.isActive) 
+                    IconButton(
+                      onPressed: () => _pauseBatch(batch),
+                      icon: const Icon(Icons.pause_circle, color: Colors.orange, size: 20),
+                      tooltip: 'Pause batch',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    )
+                  else if (batch.isPaused)
+                    IconButton(
+                      onPressed: () => _resumeBatch(batch),
+                      icon: const Icon(Icons.play_circle, color: AppTheme.primaryGreen, size: 20),
+                      tooltip: 'Resume batch', 
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                ],
               ),
             ],
           ),

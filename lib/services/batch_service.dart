@@ -39,9 +39,16 @@ class BatchService {
       rethrow;
     }
     
-    // Queue for sync if offline
+    // Sync with the Raspberry Pi when available; keep it locally pending otherwise.
     final connectivityResult = await Connectivity().checkConnectivity();
-    if (connectivityResult == ConnectivityResult.none) {
+    var synced = false;
+    if (!connectivityResult.contains(ConnectivityResult.none)) {
+      synced = await _api.sendBatchUpdate(
+        batchId: batch.id,
+        data: batchMap,
+      );
+    }
+    if (!synced) {
       await _sync.addPendingSync(
         dataType: 'batch',
         dataId: batch.id,
@@ -111,7 +118,7 @@ class BatchService {
         final avgTemp = (startTemp + endTemp) / 2;
         final avgHumid = (startHumid + endHumid) / 2;
         
-        await _db.updateBatch({
+        final updatedBatch = {
           ...batch,
           'status': 'completed',
           'finalMoisture': finalMoisture,
@@ -121,7 +128,20 @@ class BatchService {
           'endHumidity': endHumid,
           'averageTemperature': avgTemp,
           'averageHumidity': avgHumid,
-        });
+        };
+        await _db.updateBatch(updatedBatch);
+
+        final synced = await _api.sendBatchUpdate(
+          batchId: batchId,
+          data: updatedBatch,
+        );
+        if (!synced) {
+          await _sync.addPendingSync(
+            dataType: 'batch',
+            dataId: batchId,
+            data: updatedBatch,
+          );
+        }
         
         print('Batch completed with temp: ${endTemp}°C, humidity: ${endHumid}%');
       }
@@ -177,11 +197,24 @@ class BatchService {
     final batch = await _db.getBatchById(batchId);
     if (batch == null) throw Exception('Batch not found');
 
-    await _db.updateBatch({
+    final updatedBatch = {
       ...batch,
       'qualityResult': classification,
       'confidence': confidence,
-    });
+    };
+    await _db.updateBatch(updatedBatch);
+
+    final synced = await _api.sendBatchUpdate(
+      batchId: batchId,
+      data: updatedBatch,
+    );
+    if (!synced) {
+      await _sync.addPendingSync(
+        dataType: 'batch',
+        dataId: batchId,
+        data: updatedBatch,
+      );
+    }
   }
 
   // Get batch statistics
@@ -201,5 +234,16 @@ class BatchService {
       'qualityResult': batch['qualityResult'],
       'confidence': batch['confidence'],
     };
+  }
+
+  // Delete batch
+  Future<void> deleteBatch(String batchId) async {
+    try {
+      await _db.deleteBatch(batchId);
+      print('Batch deleted successfully: $batchId');
+    } catch (e) {
+      print('Error deleting batch: $e');
+      rethrow;
+    }
   }
 }

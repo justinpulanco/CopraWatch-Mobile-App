@@ -75,17 +75,35 @@ class ApiService {
   // Capture image from RPI camera
   Future<Map<String, dynamic>?> captureImageFromRPI() async {
     try {
+      print('Sending capture request to RPi...');
+      
       final response = await _client
           .post(Uri.parse('${ApiConstants.baseUrl}/api/camera/capture'))
-          .timeout(ApiConstants.receiveTimeout);
+          .timeout(const Duration(seconds: 12)); // Reduced timeout
 
+      print('RPi response status: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final result = jsonDecode(response.body);
+        print('RPi response: $result');
+        return result;
+      } else {
+        print('RPi error: ${response.statusCode} - ${response.body}');
+        return {
+          'success': false, 
+          'error': 'RPi returned ${response.statusCode}',
+          'classification': '❌ RPi Error',
+          'confidence': 0.0
+        };
       }
-      return null;
     } catch (e) {
       print('Error capturing from RPI: $e');
-      return null;
+      return {
+        'success': false, 
+        'error': e.toString(),
+        'classification': '❌ Connection Error',
+        'confidence': 0.0
+      };
     }
   }
 

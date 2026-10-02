@@ -14,6 +14,16 @@ class Batch {
   final String? qualityResult;
   final double? confidence;
   final String? notes;
+  // Environmental data
+  final double? startTemperature;
+  final double? startHumidity;
+  final double? endTemperature;
+  final double? endHumidity;
+  final double? averageTemperature;
+  final double? averageHumidity;
+  // Pause tracking
+  final DateTime? pausedAt;
+  final int pausedDurationMinutes; // Total minutes paused
 
   Batch({
     String? id,
@@ -29,16 +39,40 @@ class Batch {
     this.qualityResult,
     this.confidence,
     this.notes,
+    this.startTemperature,
+    this.startHumidity,
+    this.endTemperature,
+    this.endHumidity,
+    this.averageTemperature,
+    this.averageHumidity,
+    this.pausedAt,
+    this.pausedDurationMinutes = 0,
   }) : id = id ?? const Uuid().v4();
 
-  Duration get dryingDuration =>
-      (endDate ?? DateTime.now()).difference(startDate);
+  // Actual drying duration (excluding paused time)
+  Duration get dryingDuration {
+    final endTime = endDate ?? DateTime.now();
+    final totalDuration = endTime.difference(startDate);
+    
+    // Current pause time if currently paused
+    int currentPauseMinutes = 0;
+    if (status == 'paused' && pausedAt != null) {
+      currentPauseMinutes = DateTime.now().difference(pausedAt!).inMinutes;
+    }
+    
+    final totalPausedMinutes = pausedDurationMinutes + currentPauseMinutes;
+    final actualDuration = totalDuration.inMinutes - totalPausedMinutes;
+    
+    return Duration(minutes: actualDuration < 0 ? 0 : actualDuration);
+  }
 
     double get moistureReduction => initialMoisture > 0
       ? ((initialMoisture - finalMoisture) / initialMoisture) * 100
       : 0;
 
   bool get isActive => status == 'active';
+  bool get isPaused => status == 'paused';
+  bool get isCompleted => status == 'completed';
 
   factory Batch.empty() {
     return Batch(
@@ -65,6 +99,14 @@ class Batch {
       'qualityResult': qualityResult,
       'confidence': confidence,
       'notes': notes,
+      'startTemperature': startTemperature,
+      'startHumidity': startHumidity,
+      'endTemperature': endTemperature,
+      'endHumidity': endHumidity,
+      'averageTemperature': averageTemperature,
+      'averageHumidity': averageHumidity,
+      'pausedAt': pausedAt?.toIso8601String(),
+      'pausedDurationMinutes': pausedDurationMinutes,
     };
   }
 
@@ -72,17 +114,27 @@ class Batch {
     return Batch(
       id: map['id'] ?? const Uuid().v4(),
       name: map['name'] ?? '',
-      startDate: DateTime.parse(map['startDate'] ?? DateTime.now()),
+      startDate: map['startDate'] != null 
+          ? DateTime.parse(map['startDate']) 
+          : DateTime.now(),
       endDate: map['endDate'] != null ? DateTime.parse(map['endDate']) : null,
-      initialMoisture: map['initialMoisture'] ?? 0.0,
-      finalMoisture: map['finalMoisture'] ?? 0.0,
+      initialMoisture: map['initialMoisture']?.toDouble() ?? 0.0,
+      finalMoisture: map['finalMoisture']?.toDouble() ?? 0.0,
       initialMoistureStatus: map['initialMoistureStatus'] ?? 'basa-basa',
       finalMoistureStatus: map['finalMoistureStatus'] ?? 'basa-basa',
       status: map['status'] ?? 'active',
       readings: [],
       qualityResult: map['qualityResult'],
-      confidence: map['confidence'],
+      confidence: map['confidence']?.toDouble(),
       notes: map['notes'],
+      startTemperature: map['startTemperature']?.toDouble(),
+      startHumidity: map['startHumidity']?.toDouble(),
+      endTemperature: map['endTemperature']?.toDouble(),
+      endHumidity: map['endHumidity']?.toDouble(),
+      averageTemperature: map['averageTemperature']?.toDouble(),
+      averageHumidity: map['averageHumidity']?.toDouble(),
+      pausedAt: map['pausedAt'] != null ? DateTime.parse(map['pausedAt']) : null,
+      pausedDurationMinutes: map['pausedDurationMinutes'] ?? 0,
     );
   }
 
@@ -100,6 +152,12 @@ class Batch {
     String? qualityResult,
     double? confidence,
     String? notes,
+    double? startTemperature,
+    double? startHumidity,
+    double? endTemperature,
+    double? endHumidity,
+    double? averageTemperature,
+    double? averageHumidity,
   }) {
     return Batch(
       id: id ?? this.id,
@@ -115,6 +173,12 @@ class Batch {
       qualityResult: qualityResult ?? this.qualityResult,
       confidence: confidence ?? this.confidence,
       notes: notes ?? this.notes,
+      startTemperature: startTemperature ?? this.startTemperature,
+      startHumidity: startHumidity ?? this.startHumidity,
+      endTemperature: endTemperature ?? this.endTemperature,
+      endHumidity: endHumidity ?? this.endHumidity,
+      averageTemperature: averageTemperature ?? this.averageTemperature,
+      averageHumidity: averageHumidity ?? this.averageHumidity,
     );
   }
 }

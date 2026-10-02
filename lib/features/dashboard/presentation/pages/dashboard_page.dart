@@ -7,6 +7,7 @@ import '../../../../core/widgets/custom_bottom_navigation.dart';
 import '../../../../core/widgets/sensor_card.dart';
 import '../../../../core/widgets/loading_widget.dart';
 import '../../../../core/widgets/empty_state_widget.dart';
+import '../../../../core/widgets/page_guide_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/routes/app_router.dart';
 import '../widgets/batch_card.dart';

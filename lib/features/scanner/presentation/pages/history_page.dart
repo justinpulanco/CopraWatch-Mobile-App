@@ -80,7 +80,7 @@ class _HistoryPageState extends State<HistoryPage> {
         },
       ),
       bottomNavigationBar: CustomBottomNavigation(
-        currentLocation: AppRoutes.history,
+        currentLocation: AppRoutes.scanHistory,
       ),
     );
   }

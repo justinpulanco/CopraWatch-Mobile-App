@@ -6,6 +6,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
 import '../../../../core/widgets/sensor_card.dart';
+import '../../../../core/widgets/page_guide_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../services/sensor_provider.dart';
@@ -220,7 +221,7 @@ class _TemperatureChart extends StatelessWidget {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: 5,
+          horizontalInterval: 10,  // Increased for higher temperature range
           getDrawingHorizontalLine: (value) {
             return FlLine(
               color: AppTheme.dividerColor,
@@ -252,7 +253,7 @@ class _TemperatureChart extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              interval: 5,
+              interval: 10,  // Increased for higher range
               getTitlesWidget: (value, meta) {
                 return Text(
                   '${value.toInt()}°C',
@@ -271,7 +272,7 @@ class _TemperatureChart extends StatelessWidget {
           ),
         ),
         minY: 30,
-        maxY: 80,
+        maxY: 160,  // Increased for higher landahan temperatures
         lineBarsData: [
           LineChartBarData(
             spots: readings

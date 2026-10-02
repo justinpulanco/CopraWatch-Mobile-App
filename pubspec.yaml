@@ -2,7 +2,7 @@ name: copra_watch
 description: "An IoT-Based Solar-Powered Mobile Copra Drying Monitoring System with Machine Learning and Data Analytics for Quality Assessment"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

@@ -6,16 +6,16 @@ class AppConstants {
 
   // Sensor Thresholds
   static const double minTemperature = 30.0;
-  static const double maxTemperature = 80.0;
-  static const double optimalTemperature = 60.0;
-  static const double temperatureWarningThreshold = 70.0;
-  static const double temperatureCriticalThreshold = 75.0;
+  static const double maxTemperature = 150.0;  // Increased for real landahan
+  static const double optimalTemperature = 100.0;  // More realistic for copra drying
+  static const double temperatureWarningThreshold = 120.0;
+  static const double temperatureCriticalThreshold = 140.0;
 
-  static const double minHumidity = 5.0;
+  static const double minHumidity = 50.0;  // Minimum RH for monitoring
   static const double maxHumidity = 95.0;
-  static const double optimalHumidity = 12.0;
-  static const double humidityWarningThreshold = 20.0;
-  static const double humidityCriticalThreshold = 30.0;
+  static const double optimalHumidity = 65.0;  // Optimal RH 60-70%
+  static const double humidityWarningThreshold = 75.0;  // Alert above 75% RH
+  static const double humidityCriticalThreshold = 85.0;  // Critical above 85% RH
 
   static const double minMoisture = 5.0;
   static const double maxMoisture = 50.0;

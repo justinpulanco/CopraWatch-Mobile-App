@@ -23,7 +23,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 5,
+      version: 7, // Increase for pause columns
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -49,6 +49,32 @@ class DatabaseHelper {
     }
     if (!batchColumnNames.contains('finalMoistureStatus')) {
       await db.execute("ALTER TABLE batches ADD COLUMN finalMoistureStatus TEXT NOT NULL DEFAULT 'basa-basa'");
+    }
+    // Add environmental columns
+    if (!batchColumnNames.contains('startTemperature')) {
+      await db.execute("ALTER TABLE batches ADD COLUMN startTemperature REAL");
+    }
+    if (!batchColumnNames.contains('startHumidity')) {
+      await db.execute("ALTER TABLE batches ADD COLUMN startHumidity REAL");
+    }
+    if (!batchColumnNames.contains('endTemperature')) {
+      await db.execute("ALTER TABLE batches ADD COLUMN endTemperature REAL");
+    }
+    if (!batchColumnNames.contains('endHumidity')) {
+      await db.execute("ALTER TABLE batches ADD COLUMN endHumidity REAL");
+    }
+    if (!batchColumnNames.contains('averageTemperature')) {
+      await db.execute("ALTER TABLE batches ADD COLUMN averageTemperature REAL");
+    }
+    if (!batchColumnNames.contains('averageHumidity')) {
+      await db.execute("ALTER TABLE batches ADD COLUMN averageHumidity REAL");
+    }
+    // Add pause tracking columns
+    if (!batchColumnNames.contains('pausedAt')) {
+      await db.execute("ALTER TABLE batches ADD COLUMN pausedAt TEXT");
+    }
+    if (!batchColumnNames.contains('pausedDurationMinutes')) {
+      await db.execute("ALTER TABLE batches ADD COLUMN pausedDurationMinutes INTEGER DEFAULT 0");
     }
   }
 
@@ -83,6 +109,14 @@ class DatabaseHelper {
         qualityResult TEXT,
         confidence REAL,
         notes TEXT,
+        startTemperature REAL,
+        startHumidity REAL,
+        endTemperature REAL,
+        endHumidity REAL,
+        averageTemperature REAL,
+        averageHumidity REAL,
+        pausedAt TEXT,
+        pausedDurationMinutes INTEGER DEFAULT 0,
         createdAt TEXT NOT NULL
       )
     ''');

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
+import '../../../../core/widgets/page_guide_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../models/batch_model.dart';
@@ -153,12 +154,12 @@ class _BatchesPageState extends State<BatchesPage> {
             _buildDetailRow(
               sheetContext,
               'Initial Moisture',
-              batch.initialMoistureStatus,
+              _getMoistureDisplayText(batch.initialMoistureStatus),
             ),
             _buildDetailRow(
               sheetContext,
               'Final Moisture',
-              batch.finalMoistureStatus,
+              _getMoistureDisplayText(batch.finalMoistureStatus),
             ),
             if (batch.qualityResult != null) ...[
               const Divider(height: 24),
@@ -258,6 +259,21 @@ class _BatchesPageState extends State<BatchesPage> {
                 child: const Text('Save PDF on Phone'),
               ),
             ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () async {
+                  if (mounted) Navigator.pop(sheetContext);
+                  await _deleteBatch(batch);
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Colors.red),
+                ),
+                child: const Text('Delete Batch'),
+              ),
+            ),
           ],
         ),
       ),
@@ -311,6 +327,18 @@ class _BatchesPageState extends State<BatchesPage> {
   Future<void> _completeBatch(Batch batch) async {
     String finalStatus = batch.finalMoistureStatus;
 
+    // Auto-detect final status from ML quality result if available
+    if (batch.qualityResult != null) {
+      final mlResult = batch.qualityResult!.toLowerCase();
+      if (mlResult.contains('under')) {
+        finalStatus = 'basa-basa';
+      } else if (mlResult.contains('optimal')) {
+        finalStatus = 'tuyo';
+      } else if (mlResult.contains('over')) {
+        finalStatus = 'sunog';
+      }
+    }
+
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -318,6 +346,40 @@ class _BatchesPageState extends State<BatchesPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (batch.qualityResult != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.smart_toy, color: AppTheme.primaryGreen, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          'AI Detection Result',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: AppTheme.primaryGreen,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${batch.qualityResult} (${(batch.confidence! * 100).toStringAsFixed(1)}%)',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             DropdownButtonFormField<String>(
               value: finalStatus,
               isExpanded: true,
@@ -429,6 +491,53 @@ class _BatchesPageState extends State<BatchesPage> {
     }
   }
 
+  Future<void> _deleteBatch(Batch batch) async {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Batch?'),
+        content: Text(
+          'Are you sure you want to delete "${batch.name}"? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                await _batchService.deleteBatch(batch.id);
+                if (mounted) {
+                  Navigator.pop(dialogContext);
+                  _loadBatches();
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('🗑️ Batch deleted successfully'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error deleting batch: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDetailRow(BuildContext context, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -446,6 +555,19 @@ class _BatchesPageState extends State<BatchesPage> {
     return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+  String _getMoistureDisplayText(String moistureStatus) {
+    switch (moistureStatus) {
+      case 'basa-basa':
+        return 'Under-dried (Not yet)';
+      case 'tuyo':
+        return 'Optimally-dried (Perfect)';
+      case 'sunog':
+        return 'Over-dried (Burnt)';
+      default:
+        return moistureStatus;
+    }
+  }
+
   Widget _buildBatchCard(Batch batch) {
     final status = batch.status;
     final statusColor = status == 'completed'
@@ -455,6 +577,11 @@ class _BatchesPageState extends State<BatchesPage> {
             : status == 'paused'
                 ? Colors.orange
                 : AppTheme.warningColor;
+
+    // Show AI result if available, otherwise show moisture status
+    final conditionText = batch.qualityResult != null 
+        ? '${batch.qualityResult} (${(batch.confidence! * 100).toStringAsFixed(1)}%)'
+        : _getMoistureDisplayText(batch.finalMoistureStatus);
 
     return Card(
       child: InkWell(
@@ -495,9 +622,12 @@ class _BatchesPageState extends State<BatchesPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Condition: ${batch.finalMoistureStatus}',
-                    style: const TextStyle(fontSize: 12),
+                  Expanded(
+                    child: Text(
+                      'Condition: $conditionText',
+                      style: const TextStyle(fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   Text(
                     'Reduction: ${batch.moistureReduction.toStringAsFixed(1)}%',

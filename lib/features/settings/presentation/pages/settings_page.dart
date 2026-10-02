@@ -4,8 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
+import '../../../../core/widgets/page_guide_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../services/raspberry_pi_service.dart';
+import '../../../../services/first_time_service.dart';
 import '../../../../core/widgets/user_guide_dialog.dart';
 import '../../../../core/routes/app_router.dart';
 
@@ -92,6 +94,12 @@ class _SettingsPageState extends State<SettingsPage> {
         subtitle: 'Configuration & Preferences',
         showBackButton: true,
         onBackPressed: () => context.go(AppRoutes.dashboard),
+        actions: [
+          PageHelpButton(
+            pageName: 'settings',
+            pageTitle: 'Settings',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -123,6 +131,14 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildButton(
               'Open User Guide',
               () => showUserGuide(context),
+            ),
+            _buildButton(
+              'View All Page Guides',
+              () => _showAllGuidesMenu(context),
+            ),
+            _buildButton(
+              'Reset Tutorials',
+              () => _resetTutorials(),
             ),
             const Divider(height: 24),
 
@@ -425,6 +441,150 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showAllGuidesMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.help_outline, color: AppTheme.primaryGreen, size: 28),
+                const SizedBox(width: 12),
+                Text(
+                  'Page Guides',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryGreen,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Learn how to use each feature of CopraWatch',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Guide buttons
+            _buildGuideMenuItem(context, 'Dashboard', 'dashboard', Icons.dashboard),
+            _buildGuideMenuItem(context, 'Monitor', 'monitor', Icons.monitor_heart),
+            _buildGuideMenuItem(context, 'Scanner', 'scanner', Icons.camera_alt),
+            _buildGuideMenuItem(context, 'Batches', 'batches', Icons.inventory),
+            _buildGuideMenuItem(context, 'Analytics', 'analytics', Icons.analytics),
+            _buildGuideMenuItem(context, 'Settings', 'settings', Icons.settings),
+            
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGuideMenuItem(BuildContext context, String title, String pageName, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () {
+          Navigator.pop(context);
+          PageGuideDialog.show(context, pageName, title);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryGreen.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.1)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: AppTheme.primaryGreen, size: 20),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$title Guide',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      'Learn how to use $title features',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _resetTutorials() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Tutorials?'),
+        content: const Text(
+          'This will mark all tutorials as unseen. The welcome guide will show again on next app launch, and page guides will be offered when you visit each page.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await FirstTimeService.resetFirstTimeFlags();
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('✅ Tutorials reset! Welcome guide will show on next app launch.'),
+                    backgroundColor: AppTheme.successColor,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+            child: const Text('Reset', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

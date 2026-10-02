@@ -7,7 +7,6 @@ import '../../../models/notification_model.dart';
 import '../../../services/raspberry_pi_service.dart';
 import '../../../services/alert_service.dart';
 import '../../../services/notification_service.dart';
-import '../../../services/sync_service.dart';
 import '../../../widgets/alert_overlay.dart';
 import '../../../main.dart';
 
@@ -45,7 +44,6 @@ class SensorNotifier extends StateNotifier<SensorReadingList> {
   final RaspberryPiService _rpiService = RaspberryPiService();
   final AlertService _alertService = AlertService();
   final NotificationService _notificationService = NotificationService();
-  final SyncService _syncService = SyncService();
   
   // Alert cooldown tracking
   DateTime? _lastTempAlert;
@@ -63,6 +61,7 @@ class SensorNotifier extends StateNotifier<SensorReadingList> {
 
   void _startAutoUpdate() {
     _timer?.cancel();
+    _fetchRealData();
     _timer = Timer.periodic(const Duration(seconds: 3), (_) {
       _fetchRealData();
     });
@@ -91,13 +90,6 @@ class SensorNotifier extends StateNotifier<SensorReadingList> {
           readings: readings,
           latest: newReading,
           isConnected: true,
-        );
-        
-        // Queue sensor reading for offline sync
-        await _syncService.addPendingSync(
-          dataType: 'sensor_reading',
-          dataId: newReading.id,
-          data: newReading.toMap(),
         );
         
         // Check thresholds and create alerts

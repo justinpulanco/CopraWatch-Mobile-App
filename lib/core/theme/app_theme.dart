@@ -25,8 +25,8 @@ class AppTheme {
   static const Color shadowColor = Color(0x1F000000);
 
   // Thresholds for sensor data
-  static const double optimalTemperature = 60.0; // Celsius
-  static const double optimalHumidity = 12.0; // Percentage
+  static const double optimalTemperature = 100.0; // Celsius - realistic for landahan
+  static const double optimalHumidity = 65.0; // Percentage - 60-70% RH for copra
   static const double optimalMoisture = 12.0; // Percentage
 
   static ThemeData get lightTheme {

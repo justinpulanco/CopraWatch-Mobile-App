@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
-import 'package:tflite_flutter/tflite_flutter.dart';
+import 'package:flutter/foundation.dart';
+// Only import tflite on mobile platforms
+import 'package:tflite_flutter/tflite_flutter.dart' show Interpreter, TensorType;
 import 'package:image/image.dart' as img;
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../core/constants/app_constants.dart';
@@ -45,6 +47,13 @@ class MLService {
   /// Load ML model and labels
   Future<bool> loadModel() async {
     try {
+      // Skip ML loading on web platform
+      if (kIsWeb) {
+        print('ML model loading skipped on web platform');
+        _isModelLoaded = false;
+        return false;
+      }
+      
       print('Loading model from assets/copra_quality_model.tflite/model_unquant.tflite');
       // Load Interpreter from assets
       _interpreter = await Interpreter.fromAsset('assets/copra_quality_model.tflite/model_unquant.tflite');
@@ -76,6 +85,11 @@ class MLService {
     String? imagePath,
     Uint8List? imageBytes,
   }) async {
+    // ML not supported on web platform
+    if (kIsWeb) {
+      throw Exception('ML classification not supported on web platform. Please use mobile app.');
+    }
+    
     if (!_isModelLoaded || _interpreter == null) {
       await loadModel();
       if (!_isModelLoaded) throw Exception('Failed to load ML model');
@@ -96,7 +110,7 @@ class MLService {
 
       // 2. Prepare output buffer
       // Teachable Machine typically outputs [1, num_classes]
-      var output = List.filled(1 * _labels!.length, 0.0).reshape([1, _labels!.length]);
+      var output = [List.filled(_labels!.length, 0.0)];
 
       // 3. Run inference
       _interpreter!.run(input, output);

@@ -4,9 +4,11 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/notification_card.dart';
 import '../../../../core/widgets/empty_state_widget.dart';
+import '../../../../core/widgets/page_guide_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../models/notification_model.dart';
 import '../../../../services/database_service.dart';
+import '../../../../core/routes/app_router.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({Key? key}) : super(key: key);
@@ -56,11 +58,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
       appBar: CustomAppBar(
         title: 'Notifications',
         subtitle: 'Recent Events & Alerts',
+        onBackPressed: () => context.go(AppRoutes.dashboard),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.dashboard_rounded),
-            tooltip: 'Main Dashboard',
-            onPressed: () => context.go('/'),
+          PageHelpButton(
+            pageName: 'notifications',
+            pageTitle: 'Notifications',
           ),
           if (unreadCount > 0)
             Padding(

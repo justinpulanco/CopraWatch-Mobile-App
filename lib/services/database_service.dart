@@ -46,6 +46,12 @@ class DatabaseService {
         qualityResult TEXT,
         confidence REAL,
         notes TEXT,
+        startTemperature REAL,
+        startHumidity REAL,
+        endTemperature REAL,
+        endHumidity REAL,
+        averageTemperature REAL,
+        averageHumidity REAL,
         createdAt TEXT NOT NULL
       )
     ''');

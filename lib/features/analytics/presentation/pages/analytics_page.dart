@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
+import '../../../../core/widgets/page_guide_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../models/batch_model.dart';
@@ -63,12 +64,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       appBar: CustomAppBar(
         title: 'Analytics & Insights',
         subtitle: 'Data-Driven Performance',
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert_rounded),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppConstants.defaultPadding),
@@ -187,6 +182,78 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                         _buildLegendItem('Under-Dried', AppTheme.infoColor),
                         _buildLegendItem('Over-Dried', AppTheme.warningColor),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Optimal Conditions
+            Text(
+              'Optimal Conditions',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 12),
+
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(AppConstants.defaultPadding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildOptimalConditionRow(
+                      context,
+                      'Temperature Range',
+                      _getOptimalTempRange(),
+                      '°C',
+                      Icons.thermostat_rounded,
+                      AppTheme.warningColor,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildOptimalConditionRow(
+                      context,
+                      'Humidity Range',
+                      _getOptimalHumidityRange(),
+                      '%',
+                      Icons.water_drop_rounded,
+                      AppTheme.infoColor,
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryGreen.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppTheme.primaryGreen.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Recommendations',
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  color: AppTheme.primaryGreen,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildRecommendationItem(
+                            context,
+                            'Under-dried batches averaged ${_getUnderDriedAvgTemp().toStringAsFixed(1)}°C',
+                            'Increase temperature for better results',
+                          ),
+                          const SizedBox(height: 8),
+                          _buildRecommendationItem(
+                            context,
+                            'Over-dried batches averaged ${_getOverDriedAvgTemp().toStringAsFixed(1)}°C',
+                            'Keep temperature lower to prevent over-drying',
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -598,6 +665,143 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   fontWeight: FontWeight.w600,
                 ),
           ),
+        ),
+      ],
+    );
+  }
+
+  String _getOptimalTempRange() {
+    final optimalBatches = _completedBatches
+        .where((b) => b.qualityResult?.toLowerCase().contains('optimal') ?? false)
+        .where((b) => b.averageTemperature != null)
+        .toList();
+
+    if (optimalBatches.isEmpty) return '90-110';
+
+    final temps = optimalBatches
+        .map((b) => b.averageTemperature!)
+        .toList();
+    if (temps.isEmpty) return '90-110';
+
+    temps.sort();
+    final min = temps.first.toStringAsFixed(1);
+    final max = temps.last.toStringAsFixed(1);
+    return '$min-$max';
+  }
+
+  String _getOptimalHumidityRange() {
+    final optimalBatches = _completedBatches
+        .where((b) => b.qualityResult?.toLowerCase().contains('optimal') ?? false)
+        .where((b) => b.averageHumidity != null)
+        .toList();
+
+    if (optimalBatches.isEmpty) return '60-70';
+
+    final humidities = optimalBatches
+        .map((b) => b.averageHumidity!)
+        .toList();
+    if (humidities.isEmpty) return '60-70';
+
+    humidities.sort();
+    final min = humidities.first.toStringAsFixed(1);
+    final max = humidities.last.toStringAsFixed(1);
+    return '$min-$max';
+  }
+
+  double _getUnderDriedAvgTemp() {
+    final underBatches = _completedBatches
+        .where((b) => b.qualityResult?.toLowerCase().contains('under') ?? false)
+        .where((b) => b.averageTemperature != null)
+        .toList();
+
+    if (underBatches.isEmpty) return 0;
+    final sum = underBatches.fold<double>(0, (p, b) => p + b.averageTemperature!);
+    return sum / underBatches.length;
+  }
+
+  double _getOverDriedAvgTemp() {
+    final overBatches = _completedBatches
+        .where((b) => b.qualityResult?.toLowerCase().contains('over') ?? false)
+        .where((b) => b.averageTemperature != null)
+        .toList();
+
+    if (overBatches.isEmpty) return 0;
+    final sum = overBatches.fold<double>(0, (p, b) => p + b.averageTemperature!);
+    return sum / overBatches.length;
+  }
+
+  Widget _buildOptimalConditionRow(
+    BuildContext context,
+    String label,
+    String range,
+    String unit,
+    IconData icon,
+    Color color,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Avg optimal range',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        Text(
+          '$range$unit',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecommendationItem(
+    BuildContext context,
+    String title,
+    String subtitle,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+              ),
         ),
       ],
     );

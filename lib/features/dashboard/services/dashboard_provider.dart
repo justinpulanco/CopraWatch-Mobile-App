@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/batch_model.dart';
+import '../../../services/batch_service.dart';
 import '../../monitor/services/sensor_provider.dart';
 import '../presentation/models/dashboard_state.dart';
 
@@ -31,12 +32,9 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   void _init() async {
     state = state.copyWith(isLoading: true);
 
-    // Simulate initial loading
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    // In a real app, you'd fetch the active batch from a database
-    // For now, we'll keep the currentBatch logic as is or make it empty
+    final activeBatches = await BatchService().getActiveBatches();
     state = state.copyWith(
+      currentBatch: activeBatches.isNotEmpty ? activeBatches.first : null,
       isLoading: false,
     );
   }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/api_constants.dart';
@@ -8,6 +10,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
 import '../../../../core/widgets/mjpeg_preview.dart';
+import '../../../../core/widgets/page_guide_dialog.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../core/utils/moisture_mapper.dart';
 import '../../../../database/database_helper.dart';
@@ -345,7 +348,8 @@ class _ScannerPageState extends State<ScannerPage> {
                     _buildModelInfoRow(
                         'Input Size', '224x224 RGB'),
                     _buildModelInfoRow(
-                        'Output Classes', 'Basa-basa, Tuyo, Sunog'),
+                      'Output Classes',
+                      'under-dried (not yet), optimally-dried (perfect), over-dried (burnt)'),
                     _buildModelInfoRow(
                         'Min Confidence', '75%'),
                   ],
@@ -622,8 +626,8 @@ class _ScannerPageState extends State<ScannerPage> {
       if (response != null && response['success'] == true) {
         setState(() {
           _selectedImage = response['filename'];
-          _classificationResult = null;
-          _confidence = null;
+          _classificationResult = response['classification'];
+          _confidence = (response['confidence'] as num?)?.toDouble();
           _imageFile = null;
           _isClassifying = false;
         });
@@ -634,6 +638,16 @@ class _ScannerPageState extends State<ScannerPage> {
               content: Text('✓ Image captured from RPI!'),
               backgroundColor: AppTheme.successColor,
               duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        setState(() => _isClassifying = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response?['error'] ?? 'RPi capture failed.'),
+              backgroundColor: Colors.red,
             ),
           );
         }
@@ -655,6 +669,19 @@ class _ScannerPageState extends State<ScannerPage> {
   // Capture from phone camera
   Future<void> _captureFromPhone() async {
     try {
+      final permission = await Permission.camera.request();
+      if (!permission.isGranted) {
+        if (mounted) {
+          final message = permission.isPermanentlyDenied
+              ? 'Camera access is blocked. Enable it in the phone settings.'
+              : 'Camera permission is required to capture a copra image.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+        }
+        return;
+      }
+
       final XFile? pickedFile = await _imagePicker.pickImage(
         source: ImageSource.camera,
         imageQuality: 90,
@@ -668,10 +695,19 @@ class _ScannerPageState extends State<ScannerPage> {
           _confidence = null;
         });
       }
+    } on PlatformException catch (e) {
+      if (mounted) {
+        final message = e.code == 'camera_access_denied'
+            ? 'Camera access was denied. Enable camera permission and try again.'
+            : 'Unable to open the phone camera. Please try again.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Phone Camera Error: $e')),
+          const SnackBar(content: Text('Unable to capture an image. Please try again.')),
         );
       }
     }
@@ -685,6 +721,11 @@ class _ScannerPageState extends State<ScannerPage> {
       return;
     }
 
+    // RPi capture already performs classification; do not capture a second image.
+    if (_imageFile == null && _classificationResult != null) {
+      return;
+    }
+
     setState(() => _isClassifying = true);
 
     try {
@@ -692,77 +733,154 @@ class _ScannerPageState extends State<ScannerPage> {
       
       // Check if we have a local file (from phone) or RPI image
       if (_imageFile != null) {
-        // Phone camera - classify local file
+        // Phone camera - classify local file with validation
         final hasFace = await mlService.containsHumanFace(_imageFile!.path);
+        
+        if (hasFace) {
+          setState(() {
+            _classificationResult = '❌ No Copra Detected';
+            _confidence = 0.0;
+            _isClassifying = false;
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('❌ Please capture copra only (person detected in image)'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+          return;
+        }
+        
         final result = await mlService.classifyImage(imagePath: _imageFile!.path);
-        setState(() {
-          _classificationResult = hasFace
-              ? 'Copra image could not be verified'
-              : result.classification;
-          _confidence = result.confidence;
-          _isClassifying = false;
-        });
+        
+        // Apply same validation as RPi
+        if (result.confidence < 0.5) {
+          setState(() {
+            _classificationResult = '❌ No Copra Detected';
+            _confidence = result.confidence;
+            _isClassifying = false;
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('❌ Image does not appear to contain copra coconut'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+        } else if (result.confidence < 0.75) {
+          setState(() {
+            _classificationResult = '⚠️ Poor Image Quality';
+            _confidence = result.confidence;
+            _isClassifying = false;
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ Copra detected but image quality is poor. Try better lighting or closer shot.'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+        } else {
+          setState(() {
+            _classificationResult = result.classification;
+            _confidence = result.confidence;
+            _isClassifying = false;
+          });
+        }
       } else {
-        // RPI camera - download image and classify
+        // RPI camera - capture image with ML classification on RPi
         try {
+          // Show detailed progress
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Downloading image from RPI...')),
+            const SnackBar(
+              content: Row(
+                children: [
+                  SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                  SizedBox(width: 16),
+                  Text('Capturing and analyzing on RPi...'),
+                ],
+              ),
+              duration: Duration(seconds: 10),
+            ),
           );
           
-          // Download image from RPi
-          final response = await _apiService.downloadImageFromRPI(_selectedImage!);
+          // Capture image from RPi with shorter timeout for testing
+          final response = await _apiService.captureImageFromRPI()
+              .timeout(const Duration(seconds: 15), onTimeout: () {
+            return {
+              'success': false, 
+              'error': 'RPi timeout - check camera and connection',
+              'classification': '❌ Timeout Error',
+              'confidence': 0.0
+            };
+          });
           
-          if (response != null) {
-            // Save downloaded image temporarily to app cache
-            final directory = await getApplicationCacheDirectory();
-            File tempFile;
-            
-            try {
-              tempFile = File('${directory.path}/rpi_image.jpg');
-              await tempFile.writeAsBytes(response);
-            } catch (e) {
-              // If write fails, try using a unique filename
-              tempFile = File('${directory.path}/rpi_image_${DateTime.now().millisecondsSinceEpoch}.jpg');
-              await tempFile.writeAsBytes(response);
-            }
-            
-            final hasFace = await mlService.containsHumanFace(tempFile.path);
-            // Classify using ML
-            final result = await mlService.classifyImage(imagePath: tempFile.path);
-            
-            setState(() {
-              _classificationResult = hasFace
-                  ? 'Copra image could not be verified'
-                  : result.classification;
-              _confidence = result.confidence;
-              _isClassifying = false;
-            });
-            
-            // Clean up temp file
-            await tempFile.delete().catchError((_) => tempFile);
-            
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    hasFace
-                      ? 'Image is not recognized as copra'
-                      : 'RPI image classified',
+          if (response != null && response['success'] == true) {
+            // Check for error in classification
+            if (response['error'] != null) {
+              setState(() {
+                _classificationResult = response['classification'] ?? 'Classification Error';
+                _confidence = (response['confidence'] ?? 0.0).toDouble();
+                _isClassifying = false;
+              });
+              
+              // Hide progress snackbar
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(response['error']),
+                    backgroundColor: response['classification']!.contains('❌') 
+                        ? Colors.red 
+                        : Colors.orange,
+                    duration: const Duration(seconds: 4),
                   ),
-                  backgroundColor: AppTheme.successColor,
-                ),
-              );
+                );
+              }
+            } else {
+              // Successful classification
+              setState(() {
+                _classificationResult = response['classification'] ?? 'Unknown';
+                _confidence = (response['confidence'] ?? 0.0).toDouble();
+                _isClassifying = false;
+              });
+              
+              // Hide progress snackbar
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('✓ RPi: ${response['classification']} (${((_confidence ?? 0.0) * 100).toStringAsFixed(1)}%)'),
+                    backgroundColor: AppTheme.successColor,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
             }
           } else {
-            throw Exception('Failed to download image from RPi');
+            throw Exception('RPi capture failed - check camera and model');
           }
         } catch (e) {
           setState(() => _isClassifying = false);
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('RPI Error: $e'),
+                content: Text('RPi Error: ${e.toString()}'),
                 backgroundColor: Colors.red,
+                duration: const Duration(seconds: 5),
               ),
             );
           }
@@ -770,8 +888,13 @@ class _ScannerPageState extends State<ScannerPage> {
       }
     } catch (e) {
       setState(() => _isClassifying = false);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Classification Error: $e')),
+        SnackBar(
+          content: Text('Classification Error: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
       );
     }
   }

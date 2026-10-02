@@ -4,6 +4,27 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 class PdfService {
+  // Helper function to convert moisture status to display text
+  String _getMoistureDisplayText(String moistureStatus) {
+    switch (moistureStatus) {
+      case 'basa-basa':
+        return 'Under-dried (Not yet)';
+      case 'tuyo':
+        return 'Optimally-dried (Perfect)';
+      case 'sunog':
+        return 'Over-dried (Burnt)';
+      default:
+        return moistureStatus;
+    }
+  }
+
+  // Helper function to format quality result
+  String _formatQualityResult(String qualityResult, double confidence) {
+    if (qualityResult == 'N/A' || qualityResult.isEmpty) {
+      return 'No AI scan performed';
+    }
+    return '$qualityResult (${(confidence * 100).toStringAsFixed(1)}% confidence)';
+  }
   // Generate batch report PDF
   Future<File> generateBatchReport({
     required String batchName,
@@ -51,14 +72,14 @@ class PdfService {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text('Duration: ${duration.inHours}h ${duration.inMinutes % 60}m'),
-                  pw.Text('Initial Condition: $initialMoistureStatus'),
+                  pw.Text('Initial Condition: ${_getMoistureDisplayText(initialMoistureStatus)}'),
                 ],
               ),
               pw.SizedBox(height: 8),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Final Condition: $finalMoistureStatus'),
+                  pw.Text('Final Condition: ${_getMoistureDisplayText(finalMoistureStatus)}'),
                 ],
               ),
               pw.SizedBox(height: 20),
@@ -66,13 +87,7 @@ class PdfService {
               pw.SizedBox(height: 10),
               pw.Text('QUALITY ASSESSMENT', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Result: $qualityResult'),
-                  pw.Text('Confidence: ${(confidence * 100).toStringAsFixed(1)}%'),
-                ],
-              ),
+              pw.Text('Result: ${_formatQualityResult(qualityResult, confidence)}'),
               pw.SizedBox(height: 20),
               if (alerts.isNotEmpty) ...[
                 pw.Divider(),

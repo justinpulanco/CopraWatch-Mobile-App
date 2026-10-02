@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
+import 'user_guide_carousel.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -10,6 +11,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBackPressed;
   final Color? backgroundColor;
   final PreferredSizeWidget? bottom;
+  final bool showHelpButton; // Add help button option
 
   const CustomAppBar({
     Key? key,
@@ -20,6 +22,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.onBackPressed,
     this.backgroundColor,
     this.bottom,
+    this.showHelpButton = true, // Default show help
   }) : super(key: key);
 
   @override
@@ -58,8 +61,55 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           ]
         ],
       ),
-      actions: actions,
+      actions: [
+        // Help button (if enabled)
+        if (showHelpButton)
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.white),
+            onPressed: () => _showHelpDialog(context),
+            tooltip: 'Help & Guide',
+          ),
+        // Additional actions
+        if (actions != null) ...actions!,
+      ],
       bottom: bottom,
+    );
+  }
+
+  void _showHelpDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.help_outline, color: AppTheme.primaryGreen),
+            const SizedBox(width: 8),
+            const Text('Need Help?'),
+          ],
+        ),
+        content: const Text('Would you like to see the step-by-step guide on how to use CopraWatch?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Not Now', style: TextStyle(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => UserGuideCarousel(
+                    onComplete: () => Navigator.of(context).pop(),
+                    onSkip: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+            child: const Text('Show Guide', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 }

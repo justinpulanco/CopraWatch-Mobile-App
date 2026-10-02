@@ -1,7 +1,21 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'user_guide_carousel.dart';
 
 Future<void> showUserGuide(BuildContext context) {
+  // Launch the new swipeable guide
+  return Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (context) => UserGuideCarousel(
+        onComplete: () => Navigator.of(context).pop(),
+        onSkip: () => Navigator.of(context).pop(),
+      ),
+    ),
+  );
+}
+
+// Keep the old dialog as backup
+Future<void> showUserGuideOld(BuildContext context) {
   return showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(

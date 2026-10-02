@@ -4,6 +4,7 @@ import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/monitor/presentation/pages/monitor_page.dart';
 import '../../features/scanner/presentation/pages/scanner_page.dart';
 import '../../features/scanner/presentation/pages/history_page.dart';
+import '../../features/history/presentation/pages/history_page.dart' as batch_history;
 import '../../features/analytics/presentation/pages/analytics_page.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
@@ -14,6 +15,7 @@ class AppRoutes {
   static const String monitor = '/monitor';
   static const String scanner = '/scanner';
   static const String history = '/history';
+  static const String scanHistory = '/scan-history';
   static const String analytics = '/analytics';
   static const String notifications = '/notifications';
   static const String settings = '/settings';
@@ -41,6 +43,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.history,
       name: 'history',
+      builder: (context, state) => const batch_history.HistoryPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.scanHistory,
+      name: 'scan-history',
       builder: (context, state) => const HistoryPage(),
     ),
     GoRoute(

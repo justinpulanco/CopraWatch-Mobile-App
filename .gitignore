@@ -49,3 +49,31 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local secrets and configuration
+.env
+.env.*
+!.env.example
+/config.json
+
+# Python environments and caches
+**/.venv/
+**/venv/
+/backend/rpi_backend/convert_venv/
+__pycache__/
+
+# Local datasets, captures, and generated ML artifacts
+/backend/Copra Classification Dataset.v1i.folder/
+/backend/Copra Classification Dataset.v1i.folder.zip
+/backend/rpi_backend/Copra Classification Dataset.v2i.folder/
+/backend/rpi_backend.zip
+/backend/rpi_backend/__MACOSX/
+/backend/rpi_backend/images/
+/backend/rpi_backend/*.npy
+/backend/rpi_backend/testdata.zip
+/backend/rpi_backend/copra_quality_model_backup.tflite
+/backend/rpi_backend/copra_resnet18.onnx
+/backend/rpi_backend/copra_resnet18.onnx.data
+/backend/rpi_backend/copra_resnet18.pth
+/backend/rpi_backend/tflite_model/
+/wer/

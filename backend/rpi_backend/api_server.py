@@ -2,36 +2,64 @@
 Flask API Server for RPI Backend
 Communicates with Flutter Mobile App
 """
-from flask import Flask, jsonify, request, Response, send_from_directory
+from flask import Flask, jsonify, request, Response, send_from_directory, stream_with_context
 from werkzeug.utils import secure_filename
 from sensors import SensorManager
 from database import RPiDatabase
 from ml_service import MLService
+from startup_service import StartupService
 from datetime import datetime
+import hmac
 import os
-import subprocess
 import threading
 import time
 
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+API_KEY = os.environ.get('COPRAWATCH_API_KEY', '')
 
-# Initialize sensors, database, and ML service
-sensor_manager = SensorManager()
-database = RPiDatabase("copra_data.db")
-ml_service = MLService("copra_quality_model.tflite", "labels.txt")
 
-# Load ML model on startup
-print("Loading ML model...")
-if ml_service.load_model():
-    print("✓ ML model loaded successfully")
-else:
-    print("✗ Failed to load ML model")
+@app.before_request
+def require_api_key():
+    if not request.path.startswith('/api/'):
+        return None
+    if not API_KEY:
+        return jsonify({
+            'success': False,
+            'error': 'Backend API key is not configured'
+        }), 503
+    supplied_key = request.headers.get('X-API-Key', '')
+    if not hmac.compare_digest(supplied_key, API_KEY):
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    return None
 
-# Camera stream process
-camera_stream_process = None
-BACKEND_VERSION = "2.0.0-exports"
+# Initialize startup service and initialize all backend services
+startup_service = StartupService()
+if not startup_service.initialize_all():
+    print("✗ Failed to initialize backend services. Check logs for details.")
+    # Depending on requirements, you might want to exit here or continue in degraded mode
+    # For now, we'll continue but some functionality may be unavailable
+
+# Get initialized services from startup service
+sensor_manager = startup_service.sensor_manager
+database = startup_service.database
+ml_service = startup_service.ml_service
+camera_service = startup_service.camera_service
+
+# Fully wire the initialized GPIO service to the initialized capture workflow.
+gpio_button_service = startup_service.gpio_button_service
+capture_workflow = startup_service.capture_workflow
+if gpio_button_service and capture_workflow:
+    gpio_button_service.register_callback(capture_workflow.execute)
+    try:
+        gpio_button_service.start_listening()
+        print("✓ GPIO button service started - waiting for button presses")
+    except Exception as e:
+        print(f"⚠️  Warning: Failed to start GPIO button service: {e}")
+        print("    The system will continue but automated capture via button press will not be available")
+
+BACKEND_VERSION = "2.1.0-preview"
 EXPORTS_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "exports")
 IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
 os.makedirs(EXPORTS_DIRECTORY, exist_ok=True)
@@ -42,14 +70,19 @@ os.makedirs(IMAGES_DIRECTORY, exist_ok=True)
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """System health check"""
-    database.log_event("HEALTH_CHECK", "API health check")
+    """Report API availability and individual backend service status."""
+    services = startup_service.get_initialization_status()
+    all_services_ready = startup_service.are_all_services_initialized()
+    if database:
+        database.log_event("HEALTH_CHECK", "API health check")
+
     return jsonify({
-        "status": "online",
+        "status": "online" if all_services_ready else "degraded",
         "timestamp": datetime.now().isoformat(),
         "version": BACKEND_VERSION,
+        "services": services,
         "exports_directory": os.path.abspath(EXPORTS_DIRECTORY),
-    }), 200
+    }), 200 if all_services_ready else 503
 
 
 @app.route('/api/sensor/environmental', methods=['GET'])
@@ -92,19 +125,30 @@ def get_environmental_history():
 
 @app.route('/api/camera/capture', methods=['POST'])
 def capture_image():
-    """Capture image from camera and classify with ML"""
+    """
+    DISABLED: Camera capture is now triggered by physical button on IoT device only.
+    Mobile app cannot trigger image capture remotely.
+    """
+    return jsonify({
+        "success": False,
+        "error": "Camera capture is controlled by the physical button on the IoT device. "
+                 "This endpoint is disabled."
+    }), 403
+
+
+def _legacy_capture_image():
+    """Legacy capture function - kept for reference only, not accessible via API."""
     try:
         import subprocess
         import platform
         from datetime import datetime
-        
+
         # Generate filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"copra_{timestamp}.jpg"
         filepath = os.path.join(IMAGES_DIRECTORY, filename)
         
         # Create images directory if doesn't exist
-        import os
         os.makedirs(IMAGES_DIRECTORY, exist_ok=True)
         
         # Check if running on Windows (for testing)
@@ -118,38 +162,56 @@ def capture_image():
             }), 400
         else:
             # Raspberry Pi camera capture
+            camera_captured = False
+            camera_error = None
+            
             try:
                 # Kill any existing camera processes first
                 try:
-                    subprocess.run(["sudo", "pkill", "-f", "rpicam"], check=False)
-                    subprocess.run(["sudo", "pkill", "-f", "libcamera"], check=False)
+                    subprocess.run(["sudo", "pkill", "-f", "rpicam"], check=False, timeout=2)
+                    subprocess.run(["sudo", "pkill", "-f", "libcamera"], check=False, timeout=2)
                     time.sleep(0.5)  # Wait for processes to die
                 except:
                     pass
                 
-                # Simple single capture command
-                result = subprocess.run([
-                    "rpicam-still",
-                    "-n",  # No preview
-                    "-o", filepath,
-                    "--timeout", "500",  # 500ms timeout
-                    "--width", "224", 
-                    "--height", "224",
-                    "--quality", "70"
-                ], capture_output=True, text=True, timeout=8)
-                
-                if result.returncode != 0:
-                    # Try alternative camera command
+                # Try rpicam-still first
+                try:
                     result = subprocess.run([
-                        "libcamera-still",
-                        "-n", "-o", filepath, "-t", "500"
+                        "rpicam-still",
+                        "-n",  # No preview
+                        "-o", filepath,
+                        "--timeout", "500",  # 500ms timeout
+                        "--width", "224", 
+                        "--height", "224",
+                        "--quality", "70"
                     ], capture_output=True, text=True, timeout=8)
-                
-                if result.returncode != 0:
-                    raise Exception(f"Camera capture failed: {result.stderr}")
                     
-            except subprocess.TimeoutExpired:
-                raise Exception("Camera timeout - camera may be busy or disconnected")
+                    if result.returncode == 0 and os.path.exists(filepath):
+                        camera_captured = True
+                    else:
+                        camera_error = result.stderr if result.stderr else "rpicam-still failed"
+                        raise Exception(camera_error)
+                        
+                except (FileNotFoundError, Exception) as e:
+                    # Try libcamera-still as fallback
+                    try:
+                        result = subprocess.run([
+                            "libcamera-still",
+                            "-n", 
+                            "-o", filepath, 
+                            "-t", "500"
+                        ], capture_output=True, text=True, timeout=8)
+                        
+                        if result.returncode == 0 and os.path.exists(filepath):
+                            camera_captured = True
+                        else:
+                            camera_error = result.stderr if result.stderr else "libcamera-still failed"
+                            raise Exception(f"Fallback camera failed: {camera_error}")
+                    except Exception as fallback_e:
+                        raise Exception(f"Camera not available: {str(e)} | Fallback failed: {str(fallback_e)}")
+                    
+            except subprocess.TimeoutExpired as te:
+                raise Exception(f"Camera timeout (8s) - camera may be busy or disconnected: {str(te)}")
             except Exception as e:
                 raise Exception(f"Camera error: {str(e)}")
         
@@ -162,7 +224,12 @@ def capture_image():
             # Perform ML classification with timing
             print("Starting ML classification...")
             start_time = datetime.now()
-            classification_result = ml_service.classify_image(filepath)
+            try:
+                classification_result = ml_service.classify_image(filepath)
+            except Exception as ml_err:
+                print(f"ML Classification error: {str(ml_err)}")
+                classification_result = None
+                
             end_time = datetime.now()
             ml_duration = (end_time - start_time).total_seconds()
             print(f"ML classification took {ml_duration:.2f} seconds")
@@ -217,8 +284,8 @@ def capture_image():
                         database.log_event("BATCH_AUTO_COMPLETE", f"Auto-completed batch {batch_id}")
                     
                     conn.close()
-                except Exception as e:
-                    print(f"Error auto-completing batch: {e}")
+                except Exception as batch_err:
+                    print(f"Error auto-completing batch: {batch_err}")
                 
                 return jsonify({
                     "success": True,
@@ -234,12 +301,13 @@ def capture_image():
                 }), 200
             else:
                 # Image captured but classification failed
-                database.log_event("CLASSIFICATION_ERROR", "ML classification failed")
+                database.log_event("CLASSIFICATION_ERROR", "ML classification failed - model may not be loaded")
                 return jsonify({
                     "success": False,
-                    "error": "ML classification failed - check model file",
+                    "error": "ML classification failed - ensure model file (copra_quality_model.tflite) exists and dependencies are installed",
                     "image_id": image_id,
                     "filename": filename,
+                    "filepath": filepath,
                     "ml_duration": ml_duration
                 }), 500
         else:
@@ -288,33 +356,11 @@ def download_image(filename):
 
 @app.route('/api/classification', methods=['POST'])
 def classify_image():
-    """Store classification result (ML placeholder)"""
-    try:
-        data = request.get_json()
-        image_id = data.get('image_id')
-        classification = data.get('classification')
-        confidence = data.get('confidence')
-        
-        if not all([image_id, classification, confidence]):
-            return jsonify({
-                "success": False,
-                "error": "Missing required fields"
-            }), 400
-        
-        database.insert_classification(image_id, classification, confidence)
-        database.log_event("CLASSIFICATION", f"{classification} ({confidence})")
-        
-        return jsonify({
-            "success": True,
-            "message": "Classification stored",
-            "timestamp": datetime.now().isoformat()
-        }), 200
-    except Exception as e:
-        database.log_event("CLASSIFICATION_ERROR", str(e))
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+    """Remote classification writes are disabled; results come from device capture."""
+    return jsonify({
+        "success": False,
+        "error": "Classification is performed on the IoT device after physical-button capture."
+    }), 403
 
 
 @app.route('/api/alert/send', methods=['POST'])
@@ -338,13 +384,16 @@ def start_batch():
     """Start a new drying batch with environmental conditions"""
     try:
         data = request.get_json()
+        
+        # Use batch_id from Flutter if provided, otherwise generate new one
+        batch_id = data.get('batch_id') or f"CPR_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         batch_name = data.get('batch_name', f"Batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
         
         # Get current environmental conditions
         current_data = sensor_manager.get_environmental_data()
         
         batch_data = {
-            "batch_id": f"CPR_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "batch_id": batch_id,
             "batch_name": batch_name,
             "start_time": datetime.now().isoformat(),
             "start_temperature": current_data["temperature"],
@@ -352,7 +401,7 @@ def start_batch():
             "status": "active"
         }
         
-        # Store in database (you'll need to add batch storage to database.py)
+        # Store in database
         conn = database.get_connection()
         cursor = conn.cursor()
         
@@ -540,6 +589,50 @@ def get_current_batch():
             }), 200
             
     except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/batch/active', methods=['GET'])
+def get_active_batch():
+    """Get active batch for LCD monitor - returns data needed for display"""
+    try:
+        conn = database.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM active_batch WHERE status = "active" LIMIT 1')
+        active_batch = cursor.fetchone()
+        
+        if active_batch:
+            batch_id, batch_name, start_time, end_time, start_temp, start_hum, end_temp, end_hum, avg_temp, avg_hum, quality_result, confidence, status = active_batch
+            
+            # Get current environmental data
+            current_data = sensor_manager.get_environmental_data()
+            
+            return jsonify({
+                "success": True,
+                "data": {
+                    "batch_id": batch_id,
+                    "batch_name": batch_name,
+                    "start_time": start_time,
+                    "start_temperature": start_temp,
+                    "start_humidity": start_hum,
+                    "current_temperature": current_data["temperature"],
+                    "current_humidity": current_data["humidity"],
+                    "status": status
+                }
+            }), 200
+        else:
+            return jsonify({
+                "success": True,
+                "data": None,
+                "message": "No active batch"
+            }), 200
+            
+    except Exception as e:
+        database.log_event("BATCH_ACTIVE_ERROR", str(e))
         return jsonify({
             "success": False,
             "error": str(e)
@@ -767,201 +860,63 @@ def get_system_logs():
 
 @app.route('/api/camera/unlock', methods=['POST'])
 def unlock_camera():
-    """Force unlock camera if stuck"""
-    try:
-        # Kill camera processes
-        subprocess.run(["sudo", "pkill", "-f", "rpicam"], check=False)
-        subprocess.run(["sudo", "pkill", "-f", "libcamera"], check=False)
-        subprocess.run(["sudo", "pkill", "-f", "camera"], check=False)
-        
-        time.sleep(1)
-        
-        # Reset camera module
-        subprocess.run(["sudo", "modprobe", "-r", "bcm2835-v4l2"], check=False)
-        time.sleep(0.5)
-        subprocess.run(["sudo", "modprobe", "bcm2835-v4l2"], check=False)
-        
-        return jsonify({
-            "success": True,
-            "message": "Camera unlocked successfully"
-        }), 200
-        
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+    """Remote camera recovery is disabled; camera access is owned by the Pi service."""
+    return jsonify({
+        "success": False,
+        "error": "Remote camera controls are disabled. Restart the device service if needed."
+    }), 403
 
 
 @app.route('/api/camera/test', methods=['GET'])
 def test_camera():
-    """Test if camera is accessible"""
-    try:
-        # Try to capture a test image
-        result = subprocess.run([
-            'rpicam-still', '-t', '1', '-o', '-'
-        ], capture_output=True, timeout=5)
-        
-        if result.returncode == 0:
-            return jsonify({
-                "success": True,
-                "message": "Camera is working",
-                "command": "rpicam-still"
-            }), 200
-        else:
-            return jsonify({
-                "success": False,
-                "message": "Camera failed",
-                "error": result.stderr.decode()
-            }), 500
-            
-    except subprocess.TimeoutExpired:
-        return jsonify({
-            "success": False,
-            "error": "Camera timeout"
-        }), 500
-    except FileNotFoundError:
-        try:
-            # Try old command
-            result = subprocess.run([
-                'libcamera-still', '-t', '1', '-o', '-'
-            ], capture_output=True, timeout=5)
-            
-            if result.returncode == 0:
-                return jsonify({
-                    "success": True,
-                    "message": "Camera is working",
-                    "command": "libcamera-still"
-                }), 200
-            else:
-                return jsonify({
-                    "success": False,
-                    "message": "Camera failed",
-                    "error": result.stderr.decode()
-                }), 500
-        except Exception as e:
-            return jsonify({
-                "success": False,
-                "error": f"Camera not found: {str(e)}"
-            }), 500
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+    """Camera test captures are disabled; use the read-only preview or device status."""
+    return jsonify({
+        "success": False,
+        "error": "Remote camera tests are disabled."
+    }), 403
 
 
-@app.route('/api/camera/preview')
+@app.route('/api/camera/preview', methods=['GET'])
 def camera_preview():
-    """Simple camera preview - returns a single JPEG that can be refreshed"""
-    try:
-        # Capture a quick preview image
-        result = subprocess.run([
-            'rpicam-still', '-t', '1', '--nopreview',
-            '--width', '640', '--height', '480',
-            '-o', '-'
-        ], capture_output=True, timeout=2)
-        
-        if result.returncode == 0:
-            return Response(result.stdout, mimetype='image/jpeg')
-        else:
-            return jsonify({"error": "Preview failed"}), 500
-            
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    """Single-frame camera snapshots are disabled; use the live read-only stream."""
+    return jsonify({
+        "success": False,
+        "error": "Use /api/camera/stream for read-only live preview."
+    }), 403
 
 
-@app.route('/api/camera/snapshot')
+@app.route('/api/camera/snapshot', methods=['GET'])
 def camera_snapshot():
-    """Get a single camera snapshot (refreshable for pseudo-streaming)"""
-    try:
-        result = subprocess.run([
-            'rpicam-still', '-t', '1', '--nopreview',
-            '--width', '640', '--height', '480',
-            '-o', '-'
-        ], capture_output=True, timeout=3)
-        
-        if result.returncode == 0:
-            return Response(result.stdout, mimetype='image/jpeg')
-        else:
-            return jsonify({"error": "Camera capture failed"}), 500
-            
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    """Remote snapshots are disabled; use the live read-only stream."""
+    return jsonify({
+        "success": False,
+        "error": "Remote camera snapshots are disabled."
+    }), 403
 
 
-@app.route('/api/camera/stream')
+@app.route('/api/camera/stream', methods=['GET'])
 def camera_stream():
-    """Live camera stream endpoint (MJPEG) - Simplified version"""
+    """Stream in-memory frames from the device camera without saving or classifying them."""
     def generate_frames():
-        # Use raspistill in timelapse mode for simpler streaming
-        process = None
         try:
-            process = subprocess.Popen([
-                'rpicam-vid', '-t', '0', '--nopreview',
-                '--width', '640', '--height', '480',
-                '--codec', 'mjpeg', '--inline', '-n',
-                '-o', '-', '--framerate', '5'  # Lower framerate for stability
-            ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
-            
-            print("Camera stream process started")
-            
             while True:
-                # Read chunks looking for JPEG boundaries
-                chunk = process.stdout.read(4096)
-                if not chunk:
-                    break
-                
-                # Look for JPEG start (FF D8) and end (FF D9) markers
-                start_idx = 0
-                while start_idx < len(chunk) - 1:
-                    if chunk[start_idx] == 0xFF and chunk[start_idx + 1] == 0xD8:
-                        # Found JPEG start
-                        jpeg_start = start_idx
-                        # Read until we find end marker
-                        jpeg_data = chunk[jpeg_start:]
-                        
-                        # Keep reading until we get end marker
-                        while True:
-                            if len(jpeg_data) > 2:
-                                for i in range(len(jpeg_data) - 1):
-                                    if jpeg_data[i] == 0xFF and jpeg_data[i + 1] == 0xD9:
-                                        # Complete JPEG found
-                                        complete_jpeg = jpeg_data[:i + 2]
-                                        yield (b'--frame\r\n'
-                                               b'Content-Type: image/jpeg\r\n\r\n' + 
-                                               complete_jpeg + b'\r\n')
-                                        start_idx = jpeg_start + i + 2
-                                        break
-                                else:
-                                    # Need more data
-                                    more_data = process.stdout.read(4096)
-                                    if not more_data:
-                                        break
-                                    jpeg_data += more_data
-                                    continue
-                                break
-                            else:
-                                more_data = process.stdout.read(4096)
-                                if not more_data:
-                                    break
-                                jpeg_data += more_data
-                        break
-                    start_idx += 1
-                        
+                frame = camera_service.get_preview_frame()
+                yield (
+                    b'--frame\r\n'
+                    b'Content-Type: image/jpeg\r\n'
+                    b'Cache-Control: no-store\r\n\r\n' + frame + b'\r\n'
+                )
+                time.sleep(0.25)
+        except GeneratorExit:
+            raise
         except Exception as e:
-            print(f"Stream error: {e}")
-        finally:
-            if process:
-                try:
-                    process.terminate()
-                    process.wait(timeout=1)
-                except:
-                    process.kill()
-            print("Camera stream stopped")
-    
-    return Response(generate_frames(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+            app.logger.warning("Camera preview stream ended: %s", e)
+
+    return Response(
+        stream_with_context(generate_frames()),
+        mimetype='multipart/x-mixed-replace; boundary=frame',
+        headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'},
+    )
 
 
 # Error handlers
@@ -982,6 +937,62 @@ def internal_error(error):
     }), 500
 
 
+@app.route('/api/quality/latest', methods=['GET'])
+def get_latest_quality():
+    """Get the latest quality assessment result (read-only for mobile app)"""
+    try:
+        row = database.get_latest_quality_assessment()
+        if not row:
+            return jsonify({
+                "success": True,
+                "data": None,
+                "message": "No quality assessments found"
+            }), 200
+
+        result = {
+            **row,
+            "filename": os.path.basename(row["image_path"]),
+            "captured_by": "physical_button"
+        }
+
+        return jsonify({
+            "success": True,
+            "data": result
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching latest quality: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/quality/history/<batch_id>', methods=['GET'])
+def get_quality_history(batch_id):
+    """Get quality assessment history for a batch (read-only for mobile app)"""
+    try:
+        rows = database.get_quality_assessments_for_batch(batch_id)
+        results = [{
+            **row,
+            "filename": os.path.basename(row["image_path"]),
+            "captured_by": "physical_button"
+        } for row in rows]
+
+        return jsonify({
+            "success": True,
+            "data": results,
+            "count": len(results)
+        }), 200
+
+    except Exception as e:
+        print(f"Error fetching quality history: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 if __name__ == '__main__':
     print("Starting Copra Watch RPI Backend API...")
     print("API running on http://0.0.0.0:5000")
@@ -989,5 +1000,10 @@ if __name__ == '__main__':
     print("Camera stream available on http://0.0.0.0:5000/api/camera/stream")
     database.log_event("STARTUP", "API Server started")
     
-    # Run Flask app
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    tls_cert = os.environ.get('COPRAWATCH_TLS_CERT')
+    tls_key = os.environ.get('COPRAWATCH_TLS_KEY')
+    ssl_context = (tls_cert, tls_key) if tls_cert and tls_key else None
+
+    # Run Flask app with optional HTTPS certificates.
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True,
+            ssl_context=ssl_context)

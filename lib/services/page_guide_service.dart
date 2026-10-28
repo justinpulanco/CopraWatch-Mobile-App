@@ -5,10 +5,12 @@ class PageGuideService {
   static Map<String, List<GuideStep>> _pageGuides = {
     'dashboard': _getDashboardGuide(),
     'monitor': _getMonitorGuide(),
-    'scanner': _getScannerGuide(),
     'batches': _getBatchesGuide(),
     'analytics': _getAnalyticsGuide(),
     'settings': _getSettingsGuide(),
+    'notifications': _getNotificationsGuide(),
+    'history': _getHistoryGuide(),
+    'scanHistory': _getScanHistoryGuide(),
   };
 
   static List<GuideStep> getGuideForPage(String pageName) {
@@ -37,7 +39,7 @@ class PageGuideService {
       ),
       GuideStep(
         title: "Quick Actions",
-        description: "Quickly access Monitor, Scanner, or create new batches directly from the dashboard.",
+        description: "Open Monitor to view sensor readings and the live IoT camera preview, or manage batches.",
         iconPath: "assets/images/quick_actions.png",
       ),
       GuideStep(
@@ -61,6 +63,11 @@ class PageGuideService {
         iconPath: "assets/images/connection.png",
       ),
       GuideStep(
+        title: "Live Camera Preview",
+        description: "The app only displays the camera feed. Press the physical button on the IoT device to save and classify a capture.",
+        iconPath: "assets/images/camera_setup.png",
+      ),
+      GuideStep(
         title: "Temperature Chart",
         description: "Track temperature trends over time. Optimal range is 90-110°C for effective copra drying.",
         iconPath: "assets/images/temp_chart.png",
@@ -69,31 +76,6 @@ class PageGuideService {
         title: "Humidity Chart",
         description: "Monitor humidity levels. Lower humidity (5-12%) indicates better drying progress.",
         iconPath: "assets/images/humidity_chart.png",
-      ),
-    ];
-  }
-
-  static List<GuideStep> _getScannerGuide() {
-    return [
-      GuideStep(
-        title: "AI Quality Assessment",
-        description: "Use the camera to capture copra images for intelligent quality classification.",
-        iconPath: "assets/images/ai_scan.png",
-      ),
-      GuideStep(
-        title: "Camera Setup",
-        description: "Position copra clearly in frame with good lighting. Avoid shadows and reflections.",
-        iconPath: "assets/images/camera_setup.png",
-      ),
-      GuideStep(
-        title: "Capture & Analyze",
-        description: "Tap CAPTURE to take a photo. The AI will classify as Under-dried, Optimal, or Over-dried.",
-        iconPath: "assets/images/capture.png",
-      ),
-      GuideStep(
-        title: "Save Results",
-        description: "Review the AI classification and confidence score, then save to your active batch.",
-        iconPath: "assets/images/save_results.png",
       ),
     ];
   }
@@ -184,6 +166,61 @@ class PageGuideService {
         title: "User Guides Access",
         description: "View all page-specific guides and tutorials from this central location.",
         iconPath: "assets/images/all_guides.png",
+      ),
+    ];
+  }
+
+  static List<GuideStep> _getNotificationsGuide() {
+    return [
+      GuideStep(
+        title: 'Notifications',
+        description: 'Review alerts from temperature, humidity, and system events.',
+        iconPath: 'assets/images/alerts.png',
+      ),
+      GuideStep(
+        title: 'Read Alerts',
+        description: 'Tap an alert to review its details and mark it as read.',
+        iconPath: 'assets/images/notifications.png',
+      ),
+      GuideStep(
+        title: 'Filter Events',
+        description: 'Use the filter options to focus on the alerts you need.',
+        iconPath: 'assets/images/filters.png',
+      ),
+    ];
+  }
+
+  static List<GuideStep> _getHistoryGuide() {
+    return [
+      GuideStep(
+        title: 'Batch History',
+        description: 'Review completed and previous copra drying batches.',
+        iconPath: 'assets/images/batch_progress.png',
+      ),
+      GuideStep(
+        title: 'Batch Details',
+        description: 'Open a batch to view its drying duration, quality, and sensor summary.',
+        iconPath: 'assets/images/complete_batch.png',
+      ),
+      GuideStep(
+        title: 'Export Reports',
+        description: 'Generate a report and save it to the phone or Raspberry Pi.',
+        iconPath: 'assets/images/export.png',
+      ),
+    ];
+  }
+
+  static List<GuideStep> _getScanHistoryGuide() {
+    return [
+      GuideStep(
+        title: 'Scan History',
+        description: 'Review previous copra image classifications and confidence scores.',
+        iconPath: 'assets/images/ai_scan.png',
+      ),
+      GuideStep(
+        title: 'Classification Details',
+        description: 'Check whether each scan is under-dried, optimally-dried, or over-dried.',
+        iconPath: 'assets/images/save_results.png',
       ),
     ];
   }

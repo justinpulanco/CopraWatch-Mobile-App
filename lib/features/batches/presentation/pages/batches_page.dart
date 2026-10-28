@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
-import '../../../../core/widgets/page_guide_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../models/batch_model.dart';
@@ -10,15 +10,17 @@ import '../../../../services/batch_service.dart';
 import '../../../../services/alert_service.dart';
 import '../../../../services/pdf_service.dart';
 import '../../../../services/api_service.dart';
+import '../../../dashboard/services/dashboard_provider.dart';
+import '../../../dashboard/presentation/models/dashboard_state.dart';
 
-class BatchesPage extends StatefulWidget {
+class BatchesPage extends ConsumerStatefulWidget {
   const BatchesPage({Key? key}) : super(key: key);
 
   @override
-  State<BatchesPage> createState() => _BatchesPageState();
+  ConsumerState<BatchesPage> createState() => _BatchesPageState();
 }
 
-class _BatchesPageState extends State<BatchesPage> {
+class _BatchesPageState extends ConsumerState<BatchesPage> {
   final _batchService = BatchService();
   final _alertService = AlertService();
   final _pdfService = PdfService();
@@ -412,6 +414,15 @@ class _BatchesPageState extends State<BatchesPage> {
               if (mounted) {
                 Navigator.pop(dialogContext);
                 _loadBatches();
+
+                // Immediately clear dashboard state and wait for DB to persist
+                ref.read(dashboardStateProvider.notifier).state = DashboardState();
+
+                // Small delay to let database persist the update
+                await Future.delayed(const Duration(milliseconds: 800));
+
+                // Refresh dashboard to show next active batch (or empty state)
+                await ref.read(dashboardStateProvider.notifier).refreshBatches();
                 
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Batch marked as completed')),
@@ -552,7 +563,9 @@ class _BatchesPageState extends State<BatchesPage> {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+    return '${date.day}/${date.month}/${date.year} $hour:${date.minute.toString().padLeft(2, '0')} $period';
   }
 
   String _getMoistureDisplayText(String moistureStatus) {

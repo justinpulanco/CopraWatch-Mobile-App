@@ -2,7 +2,7 @@ name: copra_watch
 description: "An IoT-Based Solar-Powered Mobile Copra Drying Monitoring System with Machine Learning and Data Analytics for Quality Assessment"
 publish_to: 'none'
 
-version: 1.0.1+2
+version: 1.0.3+4
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -41,8 +41,7 @@ dependencies:
   # HTTP Client
   http: ^1.5.0
 
-  # Image handling
-  image_picker: ^1.1.2
+  # Image handling (for ML processing only)
   image: ^4.1.7
 
   # Machine Learning / TensorFlow Lite
@@ -62,6 +61,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
 
   flutter_lints: ^3.0.0
   build_runner: ^2.4.11
@@ -73,6 +74,7 @@ flutter:
   # Assets
   assets:
     - assets/
+    - assets/images/72cd4c3f-67fd-453e-83df-234e23e9633f.jpg
     - assets/copra_quality_model.tflite/model_unquant.tflite
     - assets/copra_quality_model.tflite/labels.txt
 

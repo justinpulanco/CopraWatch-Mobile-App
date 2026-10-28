@@ -184,7 +184,7 @@ class NotificationCardWidget extends StatelessWidget {
     } else if (difference.inHours < 24) {
       return '${difference.inHours}h ago';
     } else {
-      return DateFormat('MMM d, HH:mm').format(dateTime);
+      return DateFormat('MMM d, h:mm a').format(dateTime);
     }
   }
 }

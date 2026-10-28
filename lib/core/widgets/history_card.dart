@@ -43,7 +43,7 @@ class HistoryCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          DateFormat('MMM d, yyyy • HH:mm').format(
+                          DateFormat('MMM d, yyyy • h:mm a').format(
                             batch.startDate,
                           ),
                           style: Theme.of(context)

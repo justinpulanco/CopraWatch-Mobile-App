@@ -31,10 +31,6 @@ class CustomBottomNavigation extends StatelessWidget {
           label: 'Monitor',
         ),
         BottomNavigationBarItem(
-          icon: const Icon(Icons.camera_alt_rounded),
-          label: 'Scanner',
-        ),
-        BottomNavigationBarItem(
           icon: const Icon(Icons.inventory_2_rounded),
           label: 'Batches',
         ),
@@ -52,12 +48,10 @@ class CustomBottomNavigation extends StatelessWidget {
         return 0;
       case AppRoutes.monitor:
         return 1;
-      case AppRoutes.scanner:
-        return 2;
       case AppRoutes.batches:
-        return 3;
+        return 2;
       case AppRoutes.analytics:
-        return 4;
+        return 3;
       default:
         return 0;
     }
@@ -67,7 +61,6 @@ class CustomBottomNavigation extends StatelessWidget {
     final routes = [
       AppRoutes.dashboard,
       AppRoutes.monitor,
-      AppRoutes.scanner,
       AppRoutes.batches,
       AppRoutes.analytics,
     ];

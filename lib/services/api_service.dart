@@ -1,5 +1,7 @@
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
 import '../models/environmental_data.dart';
 import '../models/classification_result.dart';
 import '../core/constants/api_constants.dart';
@@ -7,19 +9,27 @@ import '../core/constants/api_constants.dart';
 class ApiService {
   static final ApiService _instance = ApiService._internal();
 
-  factory ApiService() {
-    return _instance;
-  }
+  factory ApiService() => _instance;
 
   ApiService._internal();
 
   final http.Client _client = http.Client();
 
+  Map<String, String> _headers([String? contentType]) {
+    return {
+      'X-API-Key': ApiConstants.apiKey,
+      if (contentType != null) 'Content-Type': contentType,
+    };
+  }
+
   // Health check
   Future<bool> healthCheck() async {
     try {
       final response = await _client
-          .get(Uri.parse(ApiConstants.healthCheck))
+          .get(
+            Uri.parse(ApiConstants.healthCheck),
+            headers: _headers(),
+          )
           .timeout(ApiConstants.connectTimeout);
 
       return response.statusCode == 200;
@@ -33,13 +43,17 @@ class ApiService {
   Future<EnvironmentalData?> getEnvironmentalData() async {
     try {
       final response = await _client
-          .get(Uri.parse(ApiConstants.environmental))
+          .get(
+            Uri.parse(ApiConstants.environmental),
+            headers: _headers(),
+          )
           .timeout(ApiConstants.receiveTimeout);
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         return EnvironmentalData.fromJson(json['data']);
       }
+
       return null;
     } catch (e) {
       print('Error fetching environmental data: $e');
@@ -48,23 +62,29 @@ class ApiService {
   }
 
   // Get environmental data history
-  Future<List<EnvironmentalData>> getEnvironmentalHistory({int limit = 10}) async {
+  Future<List<EnvironmentalData>> getEnvironmentalHistory({
+    int limit = 10,
+  }) async {
     try {
-      final url = Uri.parse(ApiConstants.environmentalHistory).replace(
+      final url = Uri.parse(
+        ApiConstants.environmentalHistory,
+      ).replace(
         queryParameters: {'limit': limit.toString()},
       );
 
       final response = await _client
-          .get(url)
+          .get(url, headers: _headers())
           .timeout(ApiConstants.receiveTimeout);
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         final List data = json['data'] as List;
+
         return data
             .map((item) => EnvironmentalData.fromJson(item))
             .toList();
       }
+
       return [];
     } catch (e) {
       print('Error fetching environmental history: $e');
@@ -72,51 +92,22 @@ class ApiService {
     }
   }
 
-  // Capture image from RPI camera
-  Future<Map<String, dynamic>?> captureImageFromRPI() async {
-    try {
-      print('Sending capture request to RPi...');
-      
-      final response = await _client
-          .post(Uri.parse('${ApiConstants.baseUrl}/api/camera/capture'))
-          .timeout(const Duration(seconds: 12)); // Reduced timeout
-
-      print('RPi response status: ${response.statusCode}');
-      
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        print('RPi response: $result');
-        return result;
-      } else {
-        print('RPi error: ${response.statusCode} - ${response.body}');
-        return {
-          'success': false, 
-          'error': 'RPi returned ${response.statusCode}',
-          'classification': '❌ RPi Error',
-          'confidence': 0.0
-        };
-      }
-    } catch (e) {
-      print('Error capturing from RPI: $e');
-      return {
-        'success': false, 
-        'error': e.toString(),
-        'classification': '❌ Connection Error',
-        'confidence': 0.0
-      };
-    }
-  }
-
-  // Download image from RPI camera
+  // Download image from Raspberry Pi camera
   Future<List<int>?> downloadImageFromRPI(String filename) async {
     try {
       final response = await _client
-          .get(Uri.parse('${ApiConstants.baseUrl}/api/camera/image/$filename'))
+          .get(
+            Uri.parse(
+              '${ApiConstants.baseUrl}/api/camera/image/$filename',
+            ),
+            headers: _headers(),
+          )
           .timeout(ApiConstants.receiveTimeout);
 
       if (response.statusCode == 200) {
         return response.bodyBytes;
       }
+
       return null;
     } catch (e) {
       print('Error downloading image from RPI: $e');
@@ -124,31 +115,40 @@ class ApiService {
     }
   }
 
+  // Upload exported report/file to Raspberry Pi
   Future<String?> uploadExport({
     required String filename,
     required List<int> bytes,
     required String contentType,
   }) async {
     try {
-      final response = await _client.post(
-        Uri.parse(ApiConstants.exports).replace(
-          queryParameters: {'filename': filename},
-        ),
-        headers: {'Content-Type': contentType},
-        body: bytes,
-      ).timeout(const Duration(seconds: 30));
+      final response = await _client
+          .post(
+            Uri.parse(ApiConstants.exports).replace(
+              queryParameters: {'filename': filename},
+            ),
+            headers: _headers(contentType),
+            body: bytes,
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
-        if (body['success'] != true || body['verified'] != true) {
+        final body =
+            jsonDecode(response.body) as Map<String, dynamic>;
+
+        if (body['success'] != true ||
+            body['verified'] != true) {
           throw Exception(
-            'Old RPi backend at ${ApiConstants.baseUrl}. Copy the updated api_server.py and restart it.',
+            'Old RPi backend at ${ApiConstants.baseUrl}. '
+            'Update api_server.py and restart the backend.',
           );
         }
+
         return body['filepath'] as String?;
       }
+
       throw Exception(
-        'RPi at ${ApiConstants.baseUrl} returned ${response.statusCode}: ${response.body}',
+        'RPi returned ${response.statusCode}: ${response.body}',
       );
     } catch (e) {
       print('Error uploading export to RPI: $e');
@@ -160,46 +160,25 @@ class ApiService {
   Future<List<ClassificationResult>> getClassifications() async {
     try {
       final response = await _client
-          .get(Uri.parse(ApiConstants.classificationsAll))
+          .get(
+            Uri.parse(ApiConstants.classificationsAll),
+            headers: _headers(),
+          )
           .timeout(ApiConstants.receiveTimeout);
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         final List data = json['data'] as List;
+
         return data
             .map((item) => ClassificationResult.fromJson(item))
             .toList();
       }
+
       return [];
     } catch (e) {
       print('Error fetching classifications: $e');
       return [];
-    }
-  }
-
-  // Send classification to API
-  Future<bool> sendClassification({
-    required int imageId,
-    required String classification,
-    required double confidence,
-  }) async {
-    try {
-      final response = await _client
-          .post(
-            Uri.parse(ApiConstants.classification),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'image_id': imageId,
-              'classification': classification,
-              'confidence': confidence,
-            }),
-          )
-          .timeout(ApiConstants.connectTimeout);
-
-      return response.statusCode == 200;
-    } catch (e) {
-      print('Error sending classification: $e');
-      return false;
     }
   }
 
@@ -211,18 +190,58 @@ class ApiService {
     try {
       final response = await _client
           .post(
-            Uri.parse('${ApiConstants.baseUrl}/api/batch/update'),
-            headers: {'Content-Type': 'application/json'},
+            Uri.parse(
+              '${ApiConstants.baseUrl}/api/batch/update',
+            ),
+            headers: _headers('application/json'),
             body: jsonEncode({
-              'batch_id': batchId,
               ...data,
+              'batch_id': batchId,
             }),
           )
           .timeout(ApiConstants.connectTimeout);
 
-      return response.statusCode == 200 || response.statusCode == 201;
+      print(
+        'Batch update: ${response.statusCode} ${response.body}',
+      );
+
+      return response.statusCode == 200 ||
+          response.statusCode == 201;
     } catch (e) {
       print('Error sending batch update: $e');
+      return false;
+    }
+  }
+
+  // Start batch on Raspberry Pi using the same batch ID
+  Future<bool> startBatch({
+    required String batchId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(
+              '${ApiConstants.baseUrl}/api/batch/start',
+            ),
+            headers: _headers('application/json'),
+            body: jsonEncode({
+              ...data,
+              'batch_id': batchId,
+              'batch_name': data['name'],
+              'start_time': data['startDate'],
+            }),
+          )
+          .timeout(ApiConstants.connectTimeout);
+
+      print(
+        'Start batch: ${response.statusCode} ${response.body}',
+      );
+
+      return response.statusCode == 200 ||
+          response.statusCode == 201;
+    } catch (e) {
+      print('Error starting batch: $e');
       return false;
     }
   }
@@ -235,8 +254,10 @@ class ApiService {
     try {
       final response = await _client
           .post(
-            Uri.parse('${ApiConstants.baseUrl}/api/alert/send'),
-            headers: {'Content-Type': 'application/json'},
+            Uri.parse(
+              '${ApiConstants.baseUrl}/api/alert/send',
+            ),
+            headers: _headers('application/json'),
             body: jsonEncode({
               'alert_id': alertId,
               ...data,
@@ -244,10 +265,82 @@ class ApiService {
           )
           .timeout(ApiConstants.connectTimeout);
 
-      return response.statusCode == 200 || response.statusCode == 201;
+      print(
+        'Send alert: ${response.statusCode} ${response.body}',
+      );
+
+      return response.statusCode == 200 ||
+          response.statusCode == 201;
     } catch (e) {
       print('Error sending alert: $e');
       return false;
+    }
+  }
+
+  // Get latest quality assessment result
+  Future<Map<String, dynamic>?> getLatestQuality() async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse('${ApiConstants.baseUrl}/api/quality/latest'),
+            headers: _headers(),
+          )
+          .timeout(ApiConstants.receiveTimeout);
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return json['data'] as Map<String, dynamic>;
+      }
+
+      return null;
+    } catch (e) {
+      print('Error fetching latest quality: $e');
+      return null;
+    }
+  }
+
+  // Get active batch
+  Future<Map<String, dynamic>?> getActiveBatch() async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse('${ApiConstants.baseUrl}/api/batch/active'),
+            headers: _headers(),
+          )
+          .timeout(ApiConstants.receiveTimeout);
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return json['data'] as Map<String, dynamic>;
+      }
+
+      return null;
+    } catch (e) {
+      print('Error fetching active batch: $e');
+      return null;
+    }
+  }
+
+  // Get batch history
+  Future<List<Map<String, dynamic>>> getBatchHistory() async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse('${ApiConstants.baseUrl}/api/batch/history'),
+            headers: _headers(),
+          )
+          .timeout(ApiConstants.receiveTimeout);
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final List data = json['data'] as List;
+        return data.cast<Map<String, dynamic>>();
+      }
+
+      return [];
+    } catch (e) {
+      print('Error fetching batch history: $e');
+      return [];
     }
   }
 }

@@ -43,6 +43,36 @@ class RaspberryPiService {
     };
   }
 
+  /// Get latest quality assessment result
+  Future<Map<String, dynamic>?> getLatestQualityResult() async {
+    try {
+      final result = await _api.getLatestQuality();
+      return result;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Get active batch information
+  Future<Map<String, dynamic>?> getActiveBatch() async {
+    try {
+      final batch = await _api.getActiveBatch();
+      return batch;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Get batch history
+  Future<List<Map<String, dynamic>>> getBatchHistory() async {
+    try {
+      final history = await _api.getBatchHistory();
+      return history;
+    } catch (e) {
+      return [];
+    }
+  }
+
   /// Disconnect
   Future<void> disconnect() async {
     _isConnected = false;

@@ -231,6 +231,11 @@ class DatabaseService {
     return await db.delete('notifications', where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<int> deleteAllNotifications() async {
+    final db = await database;
+    return await db.delete('notifications');
+  }
+
   // QUALITY PREDICTION OPERATIONS
 
   /// Insert quality prediction

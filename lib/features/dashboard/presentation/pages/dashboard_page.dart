@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
 import '../../../../core/widgets/sensor_card.dart';
 import '../../../../core/widgets/loading_widget.dart';
 import '../../../../core/widgets/empty_state_widget.dart';
-import '../../../../core/widgets/page_guide_dialog.dart';
+import '../../../../core/widgets/coprawatch_logo.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/routes/app_router.dart';
 import '../widgets/batch_card.dart';
-import '../models/dashboard_state.dart';
 import '../../services/dashboard_provider.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
@@ -37,6 +37,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     final dashboardState = ref.watch(dashboardStateProvider);
+    final qualityResult = dashboardState.latestQualityResult;
 
     if (dashboardState.isLoading && dashboardState.currentBatch == null) {
       return Scaffold(
@@ -77,6 +78,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const CopraWatchLogo(),
+              const SizedBox(height: 20),
+
               // Connection status
               if (!dashboardState.isConnected)
                 Container(
@@ -96,11 +100,29 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         size: 18,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Raspberry Pi disconnected',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              color: AppTheme.warningColor,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Offline',
+                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                    color: AppTheme.warningColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
+                            Text(
+                              'Raspberry Pi is still recording data. Reconnect to view updates.',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: AppTheme.warningColor,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => context.go(AppRoutes.settings),
+                        child: const Text('Retry'),
                       ),
                     ],
                   ),
@@ -134,9 +156,94 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
               const SizedBox(height: 16),
 
+              // Quality Result Display
+                if (qualityResult != null && qualityResult.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(AppConstants.defaultPadding),
+                  decoration: BoxDecoration(
+                    color: _getQualityColor(
+                            qualityResult['classification'] as String?)
+                        .withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _getQualityColor(
+                              qualityResult['classification'] as String?)
+                          .withOpacity(0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Latest Quality Assessment',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: _getQualityColor(
+                                      qualityResult['classification'] as String?)
+                                  .withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              qualityResult['classification'] ?? 'Unknown',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              'Confidence: ${(qualityResult['confidence'] as double? ?? 0.0).toStringAsFixed(1)}%',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (qualityResult['timestamp'] != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Updated: ${_formatTimestamp(qualityResult['timestamp'] as String?)}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
+                          ),
+                        ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(AppConstants.defaultPadding),
+                  decoration: BoxDecoration(
+                    color: AppTheme.textSecondary.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'No quality assessment available yet',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+              const SizedBox(height: 24),
+
               // Current batch
               if (dashboardState.currentBatch != null)
-                BatchCard(batch: dashboardState.currentBatch!)
+                BatchCard(
+                  batch: dashboardState.currentBatch!,
+                  latestReading: dashboardState.latestReading,
+                  qualityResult: dashboardState.latestQualityResult,
+                )
               else
                 EmptyStateWidget(
                   icon: Icons.hourglass_empty_rounded,
@@ -202,15 +309,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     child: const Text('View Analytics'),
                   ),
                 ),
-                const SizedBox(height: 12),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => context.go(AppRoutes.scanner),
-                    child: const Text('Scan Copra Quality'),
-                  ),
-                ),
               ],
               const SizedBox(height: 24),
             ],
@@ -221,5 +319,32 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         currentLocation: AppRoutes.dashboard,
       ),
     );
+  }
+
+  Color _getQualityColor(String? classification) {
+    if (classification == null) return AppTheme.textSecondary;
+    switch (classification.toLowerCase()) {
+      case 'optimally-dried':
+      case 'optimally dried':
+        return AppTheme.successColor;
+      case 'under-dried':
+      case 'under dried':
+        return AppTheme.infoColor;
+      case 'over-dried':
+      case 'over dried':
+        return AppTheme.warningColor;
+      default:
+        return AppTheme.textSecondary;
+    }
+  }
+
+  String _formatTimestamp(String? timestamp) {
+    if (timestamp == null) return 'Unknown';
+    try {
+      final dateTime = DateTime.parse(timestamp);
+      return DateFormat('MMM d, h:mm a').format(dateTime);
+    } catch (e) {
+      return timestamp;
+    }
   }
 }

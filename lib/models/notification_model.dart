@@ -73,6 +73,7 @@ class AppNotification {
       'isRead': isRead ? 1 : 0,
       'actionUrl': actionUrl,
       'batchId': batchId,
+      'createdAt': timestamp.toIso8601String(),
     };
   }
 

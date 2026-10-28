@@ -5,12 +5,14 @@ import 'package:http/http.dart' as http;
 
 class MjpegPreview extends StatefulWidget {
   final String url;
+  final Map<String, String>? headers;
   final BoxFit fit;
   final WidgetBuilder? errorBuilder;
 
   const MjpegPreview({
     super.key,
     required this.url,
+    this.headers,
     this.fit = BoxFit.cover,
     this.errorBuilder,
   });
@@ -25,6 +27,7 @@ class _MjpegPreviewState extends State<MjpegPreview> {
   Uint8List? _frame;
   Object? _error;
   final List<int> _buffer = [];
+  int _connectionGeneration = 0;
 
   @override
   void initState() {
@@ -32,29 +35,70 @@ class _MjpegPreviewState extends State<MjpegPreview> {
     _connect();
   }
 
+  @override
+  void didUpdateWidget(covariant MjpegPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url ||
+        oldWidget.headers.toString() != widget.headers.toString()) {
+      _connectionGeneration++;
+      _subscription?.cancel();
+      _client?.close();
+      _buffer.clear();
+      _frame = null;
+      _error = null;
+      _connect();
+    }
+  }
+
   Future<void> _connect() async {
-    try {
-      _client = http.Client();
-      final request = http.Request('GET', Uri.parse(widget.url));
-      final response = await _client!.send(request);
-      if (response.statusCode != 200) {
-        throw Exception('Camera stream returned ${response.statusCode}');
+    final generation = ++_connectionGeneration;
+    while (mounted && generation == _connectionGeneration) {
+      final client = http.Client();
+      _client = client;
+      try {
+        final request = http.Request('GET', Uri.parse(widget.url));
+        if (widget.headers != null) {
+          request.headers.addAll(widget.headers!);
+        }
+        final response = await client.send(request);
+        if (response.statusCode != 200) {
+          throw Exception('Camera preview returned ${response.statusCode}');
+        }
+
+        final streamEnded = Completer<void>();
+        void finishStream() {
+          if (!streamEnded.isCompleted) streamEnded.complete();
+        }
+
+        _subscription = response.stream.listen(
+          _readChunk,
+          onError: (Object error) {
+            if (mounted && generation == _connectionGeneration) {
+              setState(() => _error = error);
+            }
+            finishStream();
+          },
+          onDone: finishStream,
+          cancelOnError: true,
+        );
+        await streamEnded.future;
+        if (mounted && generation == _connectionGeneration) {
+          setState(() => _error = Exception('Camera preview disconnected'));
+        }
+      } catch (error) {
+        if (mounted && generation == _connectionGeneration) {
+          setState(() => _error = error);
+        }
+      } finally {
+        await _subscription?.cancel();
+        _subscription = null;
+        client.close();
+        if (identical(_client, client)) _client = null;
       }
 
-      _subscription = response.stream.listen(
-        _readChunk,
-        onError: (Object error) {
-          if (mounted) setState(() => _error = error);
-        },
-        onDone: () {
-          if (mounted && _frame == null) {
-            setState(() => _error = Exception('Camera stream ended'));
-          }
-        },
-        cancelOnError: true,
-      );
-    } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted && generation == _connectionGeneration) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
     }
   }
 
@@ -93,6 +137,7 @@ class _MjpegPreviewState extends State<MjpegPreview> {
 
   @override
   void dispose() {
+    _connectionGeneration++;
     _subscription?.cancel();
     _client?.close();
     super.dispose();
@@ -101,10 +146,34 @@ class _MjpegPreviewState extends State<MjpegPreview> {
   @override
   Widget build(BuildContext context) {
     if (_frame != null) {
-      return Image.memory(_frame!, fit: widget.fit, gaplessPlayback: true);
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.memory(_frame!, fit: widget.fit, gaplessPlayback: true),
+          if (_error != null)
+            Align(
+              alignment: Alignment.topCenter,
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'Reconnecting to camera preview…',
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+        ],
+      );
     }
     if (_error != null && widget.errorBuilder != null) {
       return widget.errorBuilder!(context);
+    }
+    if (_error != null) {
+      return const Center(child: Text('Camera preview unavailable'));
     }
     return const Center(child: CircularProgressIndicator(color: Colors.white));
   }

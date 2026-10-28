@@ -66,11 +66,11 @@ class _UserGuideCarouselState extends State<UserGuideCarousel> {
         action: () => _navigateToMonitor(),
       ),
       GuideStep(
-        title: "Capture Copra Image",
-        description: "When drying is complete, use the Scanner to capture your copra image for quality assessment.",
+        title: "Preview and Capture",
+        description: "View the live camera preview in Monitor. To save and classify an image, press the physical button on the IoT device.",
         iconPath: "assets/images/camera.png",
-        actionText: "Open Scanner",
-        action: () => _navigateToScanner(),
+        actionText: "Open Monitor",
+        action: () => _navigateToMonitor(),
       ),
       GuideStep(
         title: "Get Quality Results",
@@ -101,11 +101,6 @@ class _UserGuideCarouselState extends State<UserGuideCarousel> {
   void _navigateToMonitor() {
     Navigator.of(context).pop(); // Close guide
     context.go('/monitor');
-  }
-
-  void _navigateToScanner() {
-    Navigator.of(context).pop(); // Close guide
-    context.go('/scanner');
   }
 
   void _navigateToAnalytics() {

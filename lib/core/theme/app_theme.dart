@@ -3,15 +3,15 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Colors
-  static const Color primaryGreen = Color(0xFF2E7D32);
-  static const Color primaryGreenLight = Color(0xFF4CAF50);
-  static const Color primaryGreenDark = Color(0xFF1B5E20);
+  static const Color primaryGreen = Color(0xFF6D4C41);
+  static const Color primaryGreenLight = Color(0xFF8D6E63);
+  static const Color primaryGreenDark = Color(0xFF3E2723);
 
-  static const Color accentOrange = Color(0xFFFF9800);
-  static const Color accentOrangeDark = Color(0xFFE65100);
+  static const Color accentOrange = Color(0xFFC9893D);
+  static const Color accentOrangeDark = Color(0xFF8D5A2B);
 
-  static const Color backgroundColor = Color(0xFFFAFAFA);
-  static const Color surfaceColor = Color(0xFFFFFFFF);
+  static const Color backgroundColor = Color(0xFFFFF8F0);
+  static const Color surfaceColor = Color(0xFFFFFCF8);
   static const Color errorColor = Color(0xFFD32F2F);
   static const Color warningColor = Color(0xFFFFA500);
   static const Color successColor = Color(0xFF4CAF50);

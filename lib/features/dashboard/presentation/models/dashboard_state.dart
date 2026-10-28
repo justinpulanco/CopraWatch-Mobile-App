@@ -3,6 +3,7 @@ import '../../../../models/batch_model.dart';
 class DashboardState {
   final Batch? currentBatch;
   final SensorReading? latestReading;
+  final Map<String, dynamic>? latestQualityResult;
   final int unreadNotifications;
   final bool isConnected;
   final bool isLoading;
@@ -10,6 +11,7 @@ class DashboardState {
   DashboardState({
     this.currentBatch,
     this.latestReading,
+    this.latestQualityResult,
     this.unreadNotifications = 0,
     this.isConnected = false,
     this.isLoading = false,
@@ -25,6 +27,7 @@ class DashboardState {
   DashboardState copyWith({
     Batch? currentBatch,
     SensorReading? latestReading,
+    Map<String, dynamic>? latestQualityResult,
     int? unreadNotifications,
     bool? isConnected,
     bool? isLoading,
@@ -32,6 +35,7 @@ class DashboardState {
     return DashboardState(
       currentBatch: currentBatch ?? this.currentBatch,
       latestReading: latestReading ?? this.latestReading,
+      latestQualityResult: latestQualityResult ?? this.latestQualityResult,
       unreadNotifications: unreadNotifications ?? this.unreadNotifications,
       isConnected: isConnected ?? this.isConnected,
       isLoading: isLoading ?? this.isLoading,

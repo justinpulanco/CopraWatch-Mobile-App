@@ -33,13 +33,6 @@ class SyncService {
 
         // Sync based on dataType
         switch (item['dataType']) {
-          case 'scan_result':
-            success = await _api.sendClassification(
-              imageId: item['dataId'],
-              classification: data['classification'],
-              confidence: data['confidence'],
-            );
-            break;
           case 'batch':
             success = await _api.sendBatchUpdate(
               batchId: item['dataId'],

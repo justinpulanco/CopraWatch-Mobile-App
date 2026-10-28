@@ -27,6 +27,12 @@ class AlertService {
       'acknowledged': 0,
     };
     await _db.insertAlert(alert);
+    await _db.insertNotification(AppNotification(
+      title: title,
+      description: message,
+      type: type,
+      timestamp: DateTime.now(),
+    ).toMap());
   }
 
   // Check and create alerts

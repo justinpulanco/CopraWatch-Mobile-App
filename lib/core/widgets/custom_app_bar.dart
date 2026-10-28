@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import 'user_guide_carousel.dart';
+import 'page_guide_dialog.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -77,6 +78,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   void _showHelpDialog(BuildContext context) {
+    final pageName = _pageNameForTitle(title);
+    if (pageName != null) {
+      PageGuideDialog.show(context, pageName, title);
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -111,5 +118,18 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
     );
+  }
+
+  String? _pageNameForTitle(String pageTitle) {
+    if (pageTitle == 'Dashboard') return 'dashboard';
+    if (pageTitle == 'Live Monitor') return 'monitor';
+    if (pageTitle == 'Copra Quality Scanner') return 'scanner';
+    if (pageTitle == 'Scan History') return 'scanHistory';
+    if (pageTitle == 'Batch Management') return 'batches';
+    if (pageTitle == 'Batch History') return 'history';
+    if (pageTitle == 'Analytics & Insights') return 'analytics';
+    if (pageTitle == 'Notifications') return 'notifications';
+    if (pageTitle == 'Settings') return 'settings';
+    return null;
   }
 }

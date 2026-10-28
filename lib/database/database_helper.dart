@@ -23,7 +23,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 7, // Increase for pause columns
+      version: 8,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -76,6 +76,19 @@ class DatabaseHelper {
     if (!batchColumnNames.contains('pausedDurationMinutes')) {
       await db.execute("ALTER TABLE batches ADD COLUMN pausedDurationMinutes INTEGER DEFAULT 0");
     }
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS notifications(
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        type TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        isRead INTEGER NOT NULL DEFAULT 0,
+        actionUrl TEXT,
+        batchId TEXT,
+        createdAt TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -146,6 +159,20 @@ class DatabaseHelper {
         synced INTEGER DEFAULT 0
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE notifications(
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        type TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        isRead INTEGER NOT NULL DEFAULT 0,
+        actionUrl TEXT,
+        batchId TEXT,
+        createdAt TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<int> insertScanResult(ScanResult result) async {
@@ -211,6 +238,36 @@ class DatabaseHelper {
   Future<int> acknowledgeAlert(int alertId) async {
     final db = await database;
     return db.update('alerts', {'acknowledged': 1}, where: 'id = ?', whereArgs: [alertId]);
+  }
+
+  Future<int> insertNotification(Map<String, dynamic> notification) async {
+    final db = await database;
+    return db.insert('notifications', notification);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllNotifications() async {
+    final db = await database;
+    return db.query('notifications', orderBy: 'timestamp DESC');
+  }
+
+  Future<int> updateNotification(Map<String, dynamic> notification) async {
+    final db = await database;
+    return db.update(
+      'notifications',
+      notification,
+      where: 'id = ?',
+      whereArgs: [notification['id']],
+    );
+  }
+
+  Future<int> deleteNotification(String id) async {
+    final db = await database;
+    return db.delete('notifications', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteAllNotifications() async {
+    final db = await database;
+    return db.delete('notifications');
   }
 
   // Pending sync methods

@@ -9,7 +9,7 @@ import 'core/constants/api_constants.dart';
 import 'services/sync_service.dart';
 import 'services/notification_service.dart';
 import 'services/first_time_service.dart';
-import 'core/widgets/user_guide_dialog.dart';
+import 'core/widgets/launch_splash.dart';
 
 // Global navigator key for showing overlays
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -24,9 +24,11 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final ip = prefs.getString(PreferenceKeys.raspberryPiIP) ?? AppConstants.raspberryPiDefaultIP;
   final port = prefs.getInt(PreferenceKeys.raspberryPiPort) ?? AppConstants.raspberryPiDefaultPort;
+  final apiKey = prefs.getString(PreferenceKeys.raspberryPiApiKey) ?? '';
 
-  // Update API URL
+  // Update API connection settings
   ApiConstants.updateBaseUrl(ip, port);
+  ApiConstants.updateApiKey(apiKey);
   
   // Setup auto-sync
   _setupAutoSync();
@@ -35,6 +37,7 @@ void main() async {
   
   // Show welcome guide on first launch
   WidgetsBinding.instance.addPostFrameCallback((_) async {
+    await Future<void>.delayed(const Duration(milliseconds: 1900));
     final context = navigatorKey.currentState?.overlay?.context;
     if (context != null && context.mounted) {
       await FirstTimeService.showWelcomeGuideIfNeeded(context);
@@ -67,10 +70,12 @@ class CopraWatchApp extends StatelessWidget {
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
-        return Navigator(
-          key: navigatorKey,
-          onGenerateRoute: (settings) => MaterialPageRoute(
-            builder: (context) => child ?? const SizedBox(),
+        return LaunchSplash(
+          child: Navigator(
+            key: navigatorKey,
+            onGenerateRoute: (settings) => MaterialPageRoute(
+              builder: (context) => child ?? const SizedBox(),
+            ),
           ),
         );
       },

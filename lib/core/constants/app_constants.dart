@@ -98,6 +98,7 @@ class PreferenceKeys {
   static const String userId = 'user_id';
   static const String raspberryPiIP = 'raspberry_pi_ip';
   static const String raspberryPiPort = 'raspberry_pi_port';
+  static const String raspberryPiApiKey = 'raspberry_pi_api_key';
   static const String autoConnectRaspberryPi = 'auto_connect_raspberry_pi';
   static const String notificationsEnabled = 'notifications_enabled';
   static const String temperatureUnit = 'temperature_unit';

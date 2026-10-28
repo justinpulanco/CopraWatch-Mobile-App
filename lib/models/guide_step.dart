@@ -49,10 +49,10 @@ class UserGuideData {
         actionText: "View Monitor",
       ),
       GuideStep(
-        title: "Capture Copra Image",
-        description: "When drying is complete, use the Scanner to capture your copra image for quality assessment.",
+        title: "Preview and Capture",
+        description: "View the live preview in Monitor. Press the physical IoT button to save and classify an image.",
         iconPath: "assets/images/camera.png",
-        actionText: "Open Scanner",
+        actionText: "Open Monitor",
       ),
       GuideStep(
         title: "Get Quality Results",

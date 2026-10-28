@@ -4,10 +4,9 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
 import '../../../../core/widgets/notification_card.dart';
 import '../../../../core/widgets/empty_state_widget.dart';
-import '../../../../core/widgets/page_guide_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../models/notification_model.dart';
-import '../../../../services/database_service.dart';
+import '../../../../database/database_helper.dart';
 import '../../../../core/routes/app_router.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -21,7 +20,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   late List<AppNotification> _notifications = [];
   String _selectedFilter = 'all';
   bool _isLoading = true;
-  final _databaseService = DatabaseService();
+  final _databaseService = DatabaseHelper();
 
   @override
   void initState() {
@@ -60,10 +59,6 @@ class _NotificationsPageState extends State<NotificationsPage> {
         subtitle: 'Recent Events & Alerts',
         onBackPressed: () => context.go(AppRoutes.dashboard),
         actions: [
-          PageHelpButton(
-            pageName: 'notifications',
-            pageTitle: 'Notifications',
-          ),
           if (unreadCount > 0)
             Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -79,6 +74,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 ),
               ),
             ),
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_rounded),
+            onPressed: _notifications.isEmpty ? null : _clearAllNotifications,
+            tooltip: 'Clear all notifications',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _loadNotifications,
@@ -238,6 +238,44 @@ class _NotificationsPageState extends State<NotificationsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error deleting notification: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearAllNotifications() async {
+    final shouldClear = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clear all notifications?'),
+        content: const Text('This will permanently remove all saved notifications.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Clear all'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldClear != true) return;
+
+    try {
+      await _databaseService.deleteAllNotifications();
+      if (mounted) {
+        setState(() => _notifications = []);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All notifications cleared')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error clearing notifications: $e')),
         );
       }
     }

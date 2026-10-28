@@ -4,11 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/widgets/custom_app_bar.dart';
-import '../../../../core/widgets/page_guide_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../services/raspberry_pi_service.dart';
 import '../../../../services/first_time_service.dart';
-import '../../../../core/widgets/user_guide_dialog.dart';
 import '../../../../core/routes/app_router.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -23,6 +21,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   late TextEditingController _ipController;
   late TextEditingController _portController;
+  late TextEditingController _apiKeyController;
   late TextEditingController _tempThresholdController;
   late TextEditingController _humidityThresholdController;
 
@@ -36,6 +35,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     _ipController = TextEditingController(text: AppConstants.raspberryPiDefaultIP);
     _portController = TextEditingController(text: AppConstants.raspberryPiDefaultPort.toString());
+    _apiKeyController = TextEditingController();
     _tempThresholdController = TextEditingController(text: '80');
     _humidityThresholdController = TextEditingController(text: '15');
     _loadSettings();
@@ -45,6 +45,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void dispose() {
     _ipController.dispose();
     _portController.dispose();
+    _apiKeyController.dispose();
     _tempThresholdController.dispose();
     _humidityThresholdController.dispose();
     super.dispose();
@@ -55,6 +56,8 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _ipController.text = prefs.getString(PreferenceKeys.raspberryPiIP) ?? AppConstants.raspberryPiDefaultIP;
       _portController.text = (prefs.getInt(PreferenceKeys.raspberryPiPort) ?? AppConstants.raspberryPiDefaultPort).toString();
+      _apiKeyController.text = prefs.getString(PreferenceKeys.raspberryPiApiKey) ?? '';
+      ApiConstants.updateApiKey(_apiKeyController.text);
       _autoConnect = prefs.getBool(PreferenceKeys.autoConnectRaspberryPi) ?? true;
       _notificationsEnabled = prefs.getBool(PreferenceKeys.notificationsEnabled) ?? true;
       _temperatureUnit = prefs.getString(PreferenceKeys.temperatureUnit) ?? 'Celsius';
@@ -70,6 +73,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(PreferenceKeys.raspberryPiIP, _ipController.text);
     await prefs.setInt(PreferenceKeys.raspberryPiPort, int.tryParse(_portController.text) ?? 5000);
+    await prefs.setString(PreferenceKeys.raspberryPiApiKey, _apiKeyController.text.trim());
     await prefs.setBool(PreferenceKeys.autoConnectRaspberryPi, _autoConnect);
     await prefs.setBool(PreferenceKeys.notificationsEnabled, _notificationsEnabled);
     await prefs.setString(PreferenceKeys.temperatureUnit, _temperatureUnit);
@@ -78,6 +82,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     // Update API Constants
     ApiConstants.updateBaseUrl(_ipController.text, int.tryParse(_portController.text) ?? 5000);
+    ApiConstants.updateApiKey(_apiKeyController.text);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -94,12 +99,6 @@ class _SettingsPageState extends State<SettingsPage> {
         subtitle: 'Configuration & Preferences',
         showBackButton: true,
         onBackPressed: () => context.go(AppRoutes.dashboard),
-        actions: [
-          PageHelpButton(
-            pageName: 'settings',
-            pageTitle: 'Settings',
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -109,6 +108,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildConnectionStatus(),
             _buildIPAddressField(),
             _buildPortField(),
+            _buildApiKeyField(),
             _buildSwitchTile(
               'Auto-Connect',
               _autoConnect,
@@ -126,15 +126,6 @@ class _SettingsPageState extends State<SettingsPage> {
               'Temperature Unit',
               _temperatureUnit,
               () => _showTemperatureUnitDialog(),
-            ),
-            _buildButton('Calibrate Sensors', _calibrateSensors),
-            _buildButton(
-              'Open User Guide',
-              () => showUserGuide(context),
-            ),
-            _buildButton(
-              'View All Page Guides',
-              () => _showAllGuidesMenu(context),
             ),
             _buildButton(
               'Reset Tutorials',
@@ -263,6 +254,25 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildApiKeyField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppConstants.defaultPadding,
+        vertical: 8,
+      ),
+      child: TextFormField(
+        controller: _apiKeyController,
+        obscureText: true,
+        decoration: const InputDecoration(
+          labelText: 'Device API Key',
+          hintText: 'Provided during device setup',
+          prefixIcon: Icon(Icons.key_rounded),
+          border: OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSwitchTile(
     String title,
     bool value,
@@ -366,7 +376,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
     // Temporarily update base URL to test
     final originalBaseUrl = ApiConstants.baseUrl;
+    final originalApiKey = ApiConstants.apiKey;
     ApiConstants.updateBaseUrl(ip, port);
+    ApiConstants.updateApiKey(_apiKeyController.text);
 
     try {
       final success = await _rpiService.connect(ipAddress: ip, port: port);
@@ -384,6 +396,7 @@ class _SettingsPageState extends State<SettingsPage> {
       } else {
         // Revert base URL if failed
         ApiConstants.baseUrl = originalBaseUrl;
+        ApiConstants.updateApiKey(originalApiKey);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -395,6 +408,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (e) {
       ApiConstants.baseUrl = originalBaseUrl;
+      ApiConstants.updateApiKey(originalApiKey);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Connection Error: $e')),
@@ -405,12 +419,6 @@ class _SettingsPageState extends State<SettingsPage> {
         setState(() => _isTestingConnection = false);
       }
     }
-  }
-
-  void _calibrateSensors() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Calibration command sent to Raspberry Pi')),
-    );
   }
 
   void _showTemperatureUnitDialog() {
@@ -440,116 +448,6 @@ class _SettingsPageState extends State<SettingsPage> {
               },
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  void _showAllGuidesMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.help_outline, color: AppTheme.primaryGreen, size: 28),
-                const SizedBox(width: 12),
-                Text(
-                  'Page Guides',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryGreen,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Learn how to use each feature of CopraWatch',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 20),
-            
-            // Guide buttons
-            _buildGuideMenuItem(context, 'Dashboard', 'dashboard', Icons.dashboard),
-            _buildGuideMenuItem(context, 'Monitor', 'monitor', Icons.monitor_heart),
-            _buildGuideMenuItem(context, 'Scanner', 'scanner', Icons.camera_alt),
-            _buildGuideMenuItem(context, 'Batches', 'batches', Icons.inventory),
-            _buildGuideMenuItem(context, 'Analytics', 'analytics', Icons.analytics),
-            _buildGuideMenuItem(context, 'Settings', 'settings', Icons.settings),
-            
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGuideMenuItem(BuildContext context, String title, String pageName, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () {
-          Navigator.pop(context);
-          PageGuideDialog.show(context, pageName, title);
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.primaryGreen.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.1)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryGreen.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: AppTheme.primaryGreen, size: 20),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$title Guide',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      'Learn how to use $title features',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textSecondary),
-            ],
-          ),
         ),
       ),
     );

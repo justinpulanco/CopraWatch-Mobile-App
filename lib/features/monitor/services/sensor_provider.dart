@@ -70,11 +70,8 @@ class SensorNotifier extends StateNotifier<SensorReadingList> {
   Future<void> _fetchRealData() async {
     try {
       final envData = await _rpiService.getSensorData();
-      
-      print('DEBUG: Fetched sensor data: $envData');
 
       if (envData != null) {
-        print('DEBUG: Setting isConnected = true');
         final newReading = SensorReading(
           timestamp: envData.timestamp,
           temperature: envData.temperature,
@@ -91,17 +88,23 @@ class SensorNotifier extends StateNotifier<SensorReadingList> {
           latest: newReading,
           isConnected: true,
         );
-        
+
         // Check thresholds and create alerts
         await _checkThresholds(newReading);
       } else {
-        print('DEBUG: envData is null, setting isConnected = false');
         // If data is null, the connection is lost
         state = state.copyWith(isConnected: false);
       }
     } catch (e) {
-      print('DEBUG: Error fetching sensor data: $e');
-      state = state.copyWith(isConnected: false);
+      // Only mark as disconnected for network-related errors
+      // For other errors, keep the last known connection state to avoid flickering
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('HttpException') ||
+          e.toString().contains('TimeoutException')) {
+        state = state.copyWith(isConnected: false);
+      }
+      // Log error for debugging (in production, use proper logging)
+      print('Error fetching sensor data: $e');
     }
   }
   

@@ -1,6 +1,6 @@
 class ApiConstants {
   // API Base URL - This can be updated at runtime from Settings
-  static String baseUrl = 'http://192.168.254.199:5000';
+  static String baseUrl = 'https://192.168.254.199:5000';
   static String apiKey = '';
 
   // Endpoints
@@ -20,19 +20,22 @@ class ApiConstants {
     apiKey = value.trim();
   }
 
-  /// Method to update the base URL dynamically
+  /// Update the device URL, always requiring encrypted HTTPS transport.
+  /// An optional scheme in [ip] is stripped so `http://` cannot downgrade it.
   static void updateBaseUrl(String ip, int port) {
-    // Basic validation to prevent malformed URLs
-    if (ip.isEmpty) return;
-
-    // Ensure the IP has http:// prefix if missing
-    String prefix = 'http://';
-    String cleanIp = ip.trim();
-    if (cleanIp.startsWith('http://') || cleanIp.startsWith('https://')) {
-      prefix = '';
+    final cleanHost = ip
+        .trim()
+        .replaceFirst(RegExp(r'^https?://', caseSensitive: false), '')
+        .replaceFirst(RegExp(r'/+$'), '');
+    if (cleanHost.isEmpty) return;
+    if (cleanHost.contains('/') || cleanHost.contains('@')) {
+      throw ArgumentError.value(ip, 'ip', 'Enter a hostname or IP address only.');
+    }
+    if (port < 1 || port > 65535) {
+      throw ArgumentError.value(port, 'port', 'Port must be between 1 and 65535.');
     }
 
-    baseUrl = '$prefix$cleanIp:$port';
+    baseUrl = 'https://$cleanHost:$port';
     print('API Base URL updated to: $baseUrl');
   }
 }

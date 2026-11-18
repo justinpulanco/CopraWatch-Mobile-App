@@ -226,8 +226,9 @@ class _SettingsPageState extends State<SettingsPage> {
       child: TextFormField(
         controller: _ipController,
         decoration: const InputDecoration(
-          labelText: 'Raspberry Pi IP Address',
-          hintText: '192.168.1.100',
+          labelText: 'Raspberry Pi Host or IP (HTTPS)',
+          hintText: '192.168.1.100 or pi.your-domain.com',
+          helperText: 'HTTPS only; the Pi certificate must match and be trusted by this phone.',
           prefixIcon: Icon(Icons.router_rounded),
           border: OutlineInputBorder(),
         ),

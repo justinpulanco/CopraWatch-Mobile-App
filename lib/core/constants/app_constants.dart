@@ -34,7 +34,7 @@ class AppConstants {
   // API Configuration
   static const String raspberryPiDefaultIP = '192.168.254.199';
   static const int raspberryPiDefaultPort = 5000;
-  static const String apiBaseUrl = 'http://192.168.1.100:5000/api';
+  static const String apiBaseUrl = 'https://192.168.1.100:5000/api';
   static const int apiTimeoutSeconds = 30;
   static const int retryAttempts = 3;
 

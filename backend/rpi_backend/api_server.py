@@ -994,16 +994,24 @@ def get_quality_history(batch_id):
 
 
 if __name__ == '__main__':
-    print("Starting Copra Watch RPI Backend API...")
-    print("API running on http://0.0.0.0:5000")
-    print(f"Exports saved to {os.path.abspath(EXPORTS_DIRECTORY)}")
-    print("Camera stream available on http://0.0.0.0:5000/api/camera/stream")
-    database.log_event("STARTUP", "API Server started")
-    
     tls_cert = os.environ.get('COPRAWATCH_TLS_CERT')
     tls_key = os.environ.get('COPRAWATCH_TLS_KEY')
-    ssl_context = (tls_cert, tls_key) if tls_cert and tls_key else None
+    if not tls_cert or not tls_key:
+        raise SystemExit(
+            "HTTPS is required. Configure COPRAWATCH_TLS_CERT and "
+            "COPRAWATCH_TLS_KEY before starting the API."
+        )
+    if not os.path.isfile(tls_cert) or not os.path.isfile(tls_key):
+        raise SystemExit(
+            "HTTPS certificate or private key file was not found; "
+            "check COPRAWATCH_TLS_CERT and COPRAWATCH_TLS_KEY."
+        )
 
-    # Run Flask app with optional HTTPS certificates.
+    print("Starting Copra Watch RPI Backend API over HTTPS...")
+    print("API listening on HTTPS port 5000")
+    print(f"Exports saved to {os.path.abspath(EXPORTS_DIRECTORY)}")
+    print("Camera stream available at /api/camera/stream")
+    database.log_event("STARTUP", "HTTPS API Server started")
+
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True,
-            ssl_context=ssl_context)
+            ssl_context=(tls_cert, tls_key))

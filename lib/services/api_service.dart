@@ -16,6 +16,11 @@ class ApiService {
   final http.Client _client = http.Client();
 
   Map<String, String> _headers([String? contentType]) {
+    final uri = Uri.parse(ApiConstants.baseUrl);
+    if (uri.scheme != 'https') {
+      throw StateError('Refusing to send the device API key over non-HTTPS.');
+    }
+
     return {
       'X-API-Key': ApiConstants.apiKey,
       if (contentType != null) 'Content-Type': contentType,

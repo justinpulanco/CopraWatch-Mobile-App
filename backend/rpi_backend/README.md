@@ -23,54 +23,11 @@ SDA     → GPIO 2 (Pin 3)
 SCL     → GPIO 3 (Pin 5)
 ```
 
-## Software Setup
+## Deployment
 
-### 1. Enable SPI (for MAX6675)
-```bash
-sudo raspi-config
-# Interface Options → SPI → Enable → Reboot
-```
+One-time installation is a technician task: enable SPI/I2C, install the Raspberry Pi camera/GPIO and Python dependencies in a backend `.venv`, provision the API key, and install the systemd service as described in [SECURITY_SETUP.md](SECURITY_SETUP.md). The service starts on boot and restarts after failure. End users do not start the backend from a terminal during routine operation.
 
-### 2. Enable I2C (for SHT30)
-```bash
-sudo raspi-config
-# Interface Options → I2C → Enable → Reboot
-```
-
-### 3. Install Dependencies
-```bash
-pip3 install -r requirements.txt --break-system-packages
-```
-
-Or install manually:
-```bash
-pip3 install Flask Flask-CORS RPi.GPIO --break-system-packages
-```
-
-For SHT30 (optional):
-```bash
-pip3 install adafruit-circuitpython-sht31d --break-system-packages
-```
-
-## Usage
-
-### Test Sensors Only
-```bash
-python3 test_sensors.py
-```
-
-### Start API Server
-```bash
-python3 api_server.py
-```
-
-Or use the startup script:
-```bash
-chmod +x start.sh
-./start.sh
-```
-
-Server runs on: `http://0.0.0.0:5000`
+The server listens over HTTPS on port 5000 on the private network. A technician must provision a certificate trusted by the phone before starting the service. Configure the app with the certificate hostname (or matching IP) and enter the provisioned API key in Settings. See [SECURITY_SETUP.md](SECURITY_SETUP.md) for TLS provisioning and [ENCLOSURE_SETUP.md](ENCLOSURE_SETUP.md) for required physical capture setup and acceptance checks.
 
 ## API Endpoints
 
@@ -90,16 +47,12 @@ Response: {"temperature": 60.5, "humidity": 12.3, "timestamp": "..."}
 GET /api/sensor/environmental/history?limit=10
 ```
 
-### Capture Image
+### Live camera preview
 ```
-POST /api/camera/capture
+GET /api/camera/stream
 ```
 
-### Store Classification
-```
-POST /api/classification
-Body: {"image_id": 1, "classification": "Optimally-Dried", "confidence": 0.95}
-```
+This authenticated MJPEG stream is read-only. It does not save images, run classification, or change batch state. Saved captures and classifications are initiated only by pressing the physical button on the Raspberry Pi enclosure. Batch lifecycle controls remain available in the app.
 
 ### Get All Classifications
 ```
@@ -144,31 +97,4 @@ In Flutter app Settings, enter:
 
 ## Auto-Start on Boot
 
-Create systemd service:
-```bash
-sudo nano /etc/systemd/system/coprawatch.service
-```
-
-Add:
-```
-[Unit]
-Description=CopraWatch API Server
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/Desktop/rpi_backend
-ExecStart=/usr/bin/python3 /home/pi/Desktop/rpi_backend/api_server.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable:
-```bash
-sudo systemctl enable coprawatch
-sudo systemctl start coprawatch
-sudo systemctl status coprawatch
-```
+A technician installs and enables `coprawatch.service` once using `install_service.sh`; see [SECURITY_SETUP.md](SECURITY_SETUP.md). Routine operators use the mobile app and do not need to start or manage the backend from a terminal.

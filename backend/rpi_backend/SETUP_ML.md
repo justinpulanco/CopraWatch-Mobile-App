@@ -7,6 +7,16 @@ cd rpi_backend
 pip3 install -r requirements.txt
 ```
 
+If you get errors, install TFLite runtime explicitly:
+
+```bash
+# For Raspberry Pi 4/5 (arm64)
+pip3 install tflite-runtime
+
+# Or use AI Edge TFLite (newer, recommended)
+pip3 install ai-edge-litert
+```
+
 ## 2. Copy Model Files
 
 Copy these files from your Flutter app to the RPi backend directory:
@@ -25,8 +35,12 @@ Copy these files from your Flutter app to the RPi backend directory:
 python3 -c "
 from ml_service import MLService
 ml = MLService()
-print('Model loaded:', ml.load_model())
-print('Model info:', ml.get_model_info())
+result = ml.load_model()
+print('Model loaded:', result)
+if result:
+    print('Model info:', ml.get_model_info())
+else:
+    print('ERROR: Model failed to load - check copra_quality_model.tflite file')
 "
 ```
 
@@ -36,43 +50,94 @@ print('Model info:', ml.get_model_info())
 python3 api_server.py
 ```
 
+The server will log "✓ ML model loaded successfully" if working.
+
 ## 5. Test Camera + ML
 
 ```bash
-curl -X POST http://localhost:5000/api/camera/capture
+# Use the certificate hostname configured for this Pi and a provisioned API key.
+curl --cacert /path/to/trusted-ca.pem \
+  -H "X-API-Key: $COPRAWATCH_API_KEY" \
+  https://pi.your-domain.example:5000/api/health
 ```
 
-Should return classification result along with image info.
+Should return classification result or detailed error message.
 
 ## Troubleshooting
 
-1. **TensorFlow Lite not found**:
+### Issue: "RPi returned 500" in mobile app
+
+1. **Check server logs** - Run the server in terminal to see actual error:
    ```bash
-   pip3 install tflite-runtime
+   python3 api_server.py
+   # Watch for error messages during capture
    ```
 
-2. **Model file not found**:
-   - Check `copra_quality_model.tflite` is in rpi_backend folder
-   - Check `labels.txt` is in rpi_backend folder
+2. **TensorFlow/TFLite import error**:
+   The code now supports multiple import paths:
+   - ai_edge_litert (Google AI Edge - newest)
+   - tflite_runtime (Raspberry Pi standard)
+   - tensorflow.lite (fallback)
+   
+   If none work, install explicitly:
+   ```bash
+   pip3 install tflite-runtime --index-url https://google-coral.github.io/py-repo/
+   ```
 
-3. **Classification fails**:
-   - Check image file exists and is readable
-   - Check model input size matches preprocessing (224x224)
+3. **Model file not found**:
+   ```bash
+   ls -la copra_quality_model.tflite
+   ls -la labels.txt
+   ```
+   If missing, copy from Flutter app's assets folder
 
-## New API Response
+4. **Camera not detected**:
+   ```bash
+   rpicam-still --list-cameras
+   libcamera-still --list-cameras
+   ```
+   Camera must be enabled in raspi-config
 
-Camera capture now returns:
+5. **Classification returns "❌ Model Not Loaded"**:
+   - Check PIL/Pillow installed: `pip3 install pillow`
+   - Check NumPy: `pip3 install numpy`
+
+## API Response Examples
+
+### Successful Capture:
 ```json
 {
   "success": true,
   "image_id": 1,
   "filename": "copra_20261028_143022.jpg",
+  "filepath": "/home/pi/rpi_backend/images/copra_20261028_143022.jpg",
   "classification": "Optimally-dried",
   "confidence": 0.87,
   "all_predictions": {
     "Under-dried": 0.05,
     "Optimally-dried": 0.87, 
     "Over-dried": 0.08
-  }
+  },
+  "ml_duration": 0.325
+}
+```
+
+### Classification Error (with image saved):
+```json
+{
+  "success": false,
+  "error": "ML classification failed - ensure model file (copra_quality_model.tflite) exists",
+  "image_id": 1,
+  "filename": "copra_20261028_143022.jpg",
+  "filepath": "/home/pi/rpi_backend/images/copra_20261028_143022.jpg",
+  "ml_duration": 0.05
+}
+```
+
+### Camera Error:
+```json
+{
+  "success": false,
+  "error": "Camera not available: [FileNotFoundError] rpicam-still not found"
 }
 ```

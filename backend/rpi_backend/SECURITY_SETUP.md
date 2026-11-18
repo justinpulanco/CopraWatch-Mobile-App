@@ -14,9 +14,22 @@ Keep the phone and Raspberry Pi on a private, trusted Wi-Fi network. Do not expo
 
 The backend intentionally has no demo-key fallback. If `COPRAWATCH_API_KEY` is missing, API requests return HTTP 503. A wrong or missing key returns HTTP 401. Remote capture, camera unlock, camera test, and still snapshot routes are disabled. The mobile preview is read-only; use the physical Pi button to capture and classify copra.
 
-## Optional HTTPS
+## Required HTTPS
 
-For a technician-managed TLS deployment, provide valid certificate and private-key paths through `COPRAWATCH_TLS_CERT` and `COPRAWATCH_TLS_KEY` in the service environment. The certificate must be trusted by the target phone. Test connection, preview streaming, and credential handling on the deployed phone before use. Do not expose the service publicly as a substitute for local-network security.
+The API refuses to start without TLS certificate and private-key files. A technician must provision a certificate whose hostname or IP matches the address entered in the app, and whose issuing CA is trusted by the phone. Add the paths to `/etc/coprawatch/coprawatch.env`, which is loaded by the systemd service:
+
+```env
+COPRAWATCH_TLS_CERT=/etc/coprawatch/tls/fullchain.pem
+COPRAWATCH_TLS_KEY=/etc/coprawatch/tls/privkey.pem
+```
+
+Replace these example paths with the actual protected certificate and key files. Do not share or commit the private key. Restart the service after provisioning:
+
+```bash
+sudo systemctl restart coprawatch.service
+```
+
+In app Settings, enter the certificate's hostname (or matching IP) as the Raspberry Pi host and use port `5000`; keep the provisioned API key. The app always upgrades the configured address to HTTPS and refuses to send the API key over HTTP. Test connection and preview streaming on the deployed phone before use. Do not expose the service publicly as a substitute for local-network security.
 
 ## Operations and recovery
 

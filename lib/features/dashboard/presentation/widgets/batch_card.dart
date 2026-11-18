@@ -22,6 +22,8 @@ class BatchCard extends StatelessWidget {
     final duration = batch.dryingDuration;
     final durationText = '${duration.inHours}h ${duration.inMinutes % 60}m';
     final result = qualityResult;
+    final guidanceMessage =
+        _getGuidanceMessage(result?['classification'] as String?);
 
     return Card(
       child: Padding(
@@ -44,8 +46,9 @@ class BatchCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                        Text(
-                        DateFormat('Started MMM d, h:mm a').format(batch.startDate),
+                      Text(
+                        DateFormat('Started MMM d, h:mm a')
+                            .format(batch.startDate),
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                               color: AppTheme.textSecondary,
                             ),
@@ -55,12 +58,20 @@ class BatchCard extends StatelessWidget {
                 ),
                 StatusChip(
                   label: batch.status.toUpperCase(),
-                  status: batch.isActive ? StatusType.active : StatusType.completed,
+                  status:
+                      batch.isActive ? StatusType.active : StatusType.completed,
                   outlined: false,
                 ),
               ],
             ),
             const SizedBox(height: 16),
+            Text(
+              'Drying Guidance',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 8),
 
             // Quality Result (if available)
             if (result != null && result.isNotEmpty)
@@ -74,16 +85,19 @@ class BatchCard extends StatelessWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: _getQualityColor(result['classification'] as String?)
+                        color: _getQualityColor(
+                                result['classification'] as String?)
                             .withOpacity(0.2),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         result['classification'] ?? 'Unknown',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: _getQualityColor(result['classification'] as String?),
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: _getQualityColor(
+                                      result['classification'] as String?),
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -97,6 +111,34 @@ class BatchCard extends StatelessWidget {
                 ),
               ),
 
+            if (guidanceMessage != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.infoColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: AppTheme.infoColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        guidanceMessage,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
             Row(
               children: [
                 const Icon(
@@ -145,11 +187,23 @@ class BatchCard extends StatelessWidget {
                   ),
                 ],
               ),
-
           ],
         ),
       ),
     );
+  }
+
+  String? _getGuidanceMessage(String? classification) {
+    final normalized = classification
+        ?.trim()
+        .toLowerCase()
+        .replaceAll('-', ' ')
+        .replaceAll('_', ' ');
+
+    if (normalized == 'mixed') {
+      return 'Turn/rearrange the copra, then check again.';
+    }
+    return null;
   }
 
   Color _getQualityColor(String? classification) {
